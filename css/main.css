@@ -56,12 +56,28 @@ canvas {
 
 /* El botón de VR que añade Three.js */
 #VRButton {
+    /* Estilo general */
     z-index: 100 !important;
-    position: fixed !important;
-    top: 20px;
-    right: 20px;
     background: #f0f !important; /* Rosa neón */
-    border: 1px solid #f0f !important;
+    border: 2px solid #f0f !important;
     color: #000 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-weight: bold !important;
     box-shadow: 0 0 15px #f0f;
+    border-radius: 8px !important;
+    padding: 10px 15px !important;
+    
+    /* Posición fija en la esquina */
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+
+    /* Sobreescribir los estilos de "Cardboard mode" */
+    width: auto !important;
+    height: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    writing-mode: initial !important;
+    transform: none !important;
+    -webkit-transform: none !important;
 }
