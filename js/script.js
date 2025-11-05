@@ -69,7 +69,6 @@ function init() {
 
     // --- Controles de Órbita (para escritorio) ---
     controls = new OrbitControls(camera, renderer.domElement);
-    // MODIFICADO: Apuntar los controles de escritorio 1m hacia adelante
     controls.target.set(0, 1.6, -1); 
     controls.update();
 
@@ -228,7 +227,7 @@ function loadScene() {
     btnScene.classList.add('active');
     btnCharacter.classList.remove('active');
 
-    // MODIFICADO: Poner al jugador en el origen para ESTAR DENTRO del escenario
+    // Poner al jugador en el origen para ESTAR DENTRO del escenario
     playerRig.position.set(0, 0, 0);
 
     const loader = new GLTFLoader();
@@ -251,13 +250,8 @@ function loadCharacter() {
     btnScene.classList.remove('active');
     btnCharacter.classList.add('active');
     
-    // MODIFICADO: Mover al jugador 3m HACIA ATRÁS para VER al personaje
+    // Mover al jugador 3m HACIA ATRÁS para VER al personaje
     playerRig.position.set(0, 0, 3);
-
-    // MODIFICADO: Eliminamos la luz puntual extra
-    // const pointLight = new THREE.PointLight(0xffffff, 5.0); 
-    // pointLight.position.set(0, 1, -1.5); 
-    // contentHolder.add(pointLight);
 
     const fbxLoader = new FBXLoader();
     fbxLoader.load(
@@ -265,11 +259,14 @@ function loadCharacter() {
         (fbxModel) => {
             console.log("Modelo KGR cargado.");
             
-            // MODIFICADO: Aumentamos la escala
+            // Aumentamos la escala
             fbxModel.scale.set(0.01, 0.01, 0.01);
             
-            // MODIFICADO: Ponemos el personaje en el origen (0,0,0)
+            // Ponemos el personaje en el origen (0,0,0)
             fbxModel.position.set(0, 0, 0); 
+
+            
+            fbxModel.rotation.y = Math.PI / 2; // (Math.PI / 2) son 90 grados
             
             const animLoader = new FBXLoader();
             animLoader.load(
@@ -281,10 +278,6 @@ function loadCharacter() {
                     action.play();
                     
                     contentHolder.add(fbxModel);
-                    
-                    // MODIFICADO: Eliminamos el BoxHelper
-                    // const boxHelper = new THREE.BoxHelper(fbxModel, 0xffff00); 
-                    // contentHolder.add(boxHelper); 
 
                 },
                 undefined,
@@ -319,15 +312,9 @@ function animate() {
     
     if (renderer.xr.isPresenting) {
         handleTeleport(controller1);
-        handleTeleport(controller2);
+        handleTelepreport(controller2);
         handleThumbstickMovement(delta);
     }
-
-    // MODIFICADO: Eliminamos la actualización del BoxHelper
-    // const helper = contentHolder.children.find(child => child.isBoxHelper);
-    // if (helper) {
-    //     helper.update(); 
-    // }
 
     renderer.render(scene, camera);
 }
