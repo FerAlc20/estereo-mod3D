@@ -13,7 +13,7 @@ let currentState = 'MENU';
 let reticle, raycaster, interactableGroup;
 let currentGazeTarget = null;
 let gazeDwellTime = 0;
-const DWELL_TIME_THRESHOLD = 1.5; // 1.5 segundos
+const DWELL_TIME_THRESHOLD = 1.5;
 
 // Elementos de la UI HTML
 const uiMenu = document.getElementById('menu-ui');
@@ -42,7 +42,10 @@ function init() {
     // --- Configuración de Interacción VR ---
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    scene.add(interactableGroup);
+    // --- ¡CORRECCIÓN 1: BOTONES FIJOS! ---
+    // Añadimos los botones a la CÁMARA, no a la escena.
+    // Esto hace que te sigan y no se queden en el mundo.
+    camera.add(interactableGroup);
 
     // 1. El punto blanco (Retícula)
     const reticleGeo = new THREE.CircleGeometry(0.003, 16);
@@ -91,12 +94,11 @@ function switchScene(newState) {
     currentState = newState;
 
     scene.clear();
-    interactableGroup.clear();
+    interactableGroup.clear(); // Los botones se borran del grupo
     if (mixer) mixer = null;
     if (controls) controls.dispose();
 
-    scene.add(camera);
-    scene.add(interactableGroup);
+    scene.add(camera); // Añadimos la cámara (que YA CONTIENE la retícula y el grupo de botones)
 
     currentGazeTarget = null;
     gazeDwellTime = 0;
@@ -130,7 +132,7 @@ function setupMenu() {
     scene.add(cube);
 }
 
-// --- ¡CORRECCIÓN 1: ESCENARIO (Bus Stop)! ---
+// --- ¡CORRECCIÓN 2: ESCENARIO (Bus Stop) A NIVEL DE CALLE! ---
 function setupEscenario1() {
     scene.background = new THREE.Color(0x88ccee); // Cielo azul
     scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
@@ -138,8 +140,9 @@ function setupEscenario1() {
     directionalLight.position.set(-5, 25, -1);
     scene.add(directionalLight);
     
-    // 1. Poner la cámara a 1.6m (altura de ojos) y 5m atrás
-    camera.position.set(0, 1.6, 5); 
+    // 1. Poner la cámara a 1.6m (altura de ojos) y 15m atrás
+    //    Esto te saca del "cuarto" y te pone en la calle.
+    camera.position.set(0, 1.6, 15); 
     
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, 0); // Mirar al centro
@@ -147,19 +150,17 @@ function setupEscenario1() {
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
-        // 2. Escalar el vecindario
-        gltf.scene.scale.set(0.1, 0.1, 0.1);
+        // 2. NO escalamos el modelo (1,1,1)
+        gltf.scene.scale.set(1, 1, 1);
         
-        // 3. ¡LA CALLE A TUS PIES!
-        // Bajamos el escenario 1.6m para que el suelo
-        // del modelo (Y=0) coincida con tus pies (Y=0)
-        gltf.scene.position.y = -1.6; 
+        // 3. NO bajamos el modelo.
+        gltf.scene.position.y = 0; 
         
         scene.add(gltf.scene);
     });
 }
 
-// --- ¡CORRECCIÓN 2: PERSONAJE (KGR)! ---
+// --- ¡CORRECCIÓN 3: PERSONAJE (KGR) DE FRENTE Y COMPLETO! ---
 function setupEscenario2() {
     scene.background = new THREE.Color(0x101010); // Fondo oscuro
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
@@ -167,26 +168,28 @@ function setupEscenario2() {
     dirLight.position.set(1, 2, 3);
     scene.add(dirLight);
     
-    // 1. Poner la cámara a altura de ojos y 5m atrás
-    camera.position.set(0, 1.6, 5); 
+    // 1. Poner la cámara a altura de ojos y 3m atrás
+    camera.position.set(0, 1.6, 3); 
     
     controls = new OrbitControls(camera, renderer.domElement);
-    // 2. Apuntar la cámara 2D al personaje (que está en X: -1.0)
-    controls.target.set(-1.0, 1, 0); 
+    // 2. Apuntar la cámara 2D al personaje
+    controls.target.set(0, 1, 0); // Apuntar al centro
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
-        // 3. ¡ESCALA CORREGIDA! Estabas dentro de las piernas.
-        // Lo hacemos 10 veces más pequeño que 0.01.
-        fbxModel.scale.set(0.002, 0.002, 0.002);
+        // 3. ¡ESCALA CORREGIDA!
+        // 0.01 era pequeño, 0.02 era enorme. 0.015 es un buen punto medio.
+        fbxModel.scale.set(0.015, 0.015, 0.015);
         
-        // 4. ¡POSICIÓN A LA IZQUIERDA!
-        // X: -1.0 (a la izquierda)
-        // Y: 0 (en el suelo)
-        // Z: 0 (5m en frente de la cámara)
-        fbxModel.position.set(-1.0, 0, 0); // Ajusta X si lo quieres más a la izquierda
+        // 4. ¡POSICIÓN CORREGIDA!
+        // Centrado (X=0) y sobre el suelo (Y=0.1)
+        fbxModel.position.set(0, 0.1, 0); 
+
+        // 5. ¡ROTACIÓN CORREGIDA!
+        // Gira 90 grados (Math.PI / 2) para que te mire de frente.
+        fbxModel.rotation.y = Math.PI / 2;
         
         scene.add(fbxModel);
 
@@ -228,9 +231,10 @@ function createButtonMesh(text, name, yPos) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
     
-    // --- ¡CORRECCIÓN 3: BOTONES VR ABAJO! ---
+    // --- ¡CORRECCIÓN 4: BOTONES VR ABAJO! ---
     // Posiciona los botones 0.5m por debajo del centro de la vista
     // yPos (0.3 o 0) - 0.5 = -0.2m o -0.5m
+    // (Recuerda que están PEGADOS A LA CÁMARA)
     mesh.position.set(0, yPos - 0.5, -2.5); 
 
     return mesh;
