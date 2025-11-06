@@ -42,9 +42,8 @@ function init() {
 
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    // --- ¡CAMBIO 1: BOTONES YA NO SE PEGAN A LA CÁMARA! ---
-    // La línea "camera.add(interactableGroup);" se ha ELIMINADO de aquí.
-
+    // Los botones YA NO se pegan a la cámara
+    
     // --- El "Cursor" (Retícula de Mirada) ---
     // Este se queda pegado a la cámara (esto SÍ es correcto).
     const reticleGeo = new THREE.CircleGeometry(0.015, 16); // Tamaño grande
@@ -99,8 +98,7 @@ function switchScene(newState) {
 
     scene.add(camera); 
 
-    // --- ¡CAMBIO 2: AÑADIR BOTONES A LA ESCENA (AL MUNDO)! ---
-    // Ahora los botones se añaden a la escena, no a la cámara.
+    // AÑADIR BOTONES A LA ESCENA (AL MUNDO)
     scene.add(interactableGroup);
     // Los posicionamos flotando en el mundo, a nivel de los ojos (1.6m)
     // y 2.5m enfrente de donde inicias.
@@ -223,9 +221,7 @@ function createButtonMesh(text, name, yPos) {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
-    // --- ¡CAMBIO 3: POSICIÓN DEL BOTÓN RELATIVA AL GRUPO! ---
-    // Ahora se posicionan verticalmente (yPos) dentro del grupo,
-    // ya que el grupo (interactableGroup) es el que está posicionado en -2.5z.
+    // POSICIÓN DEL BOTÓN RELATIVA AL GRUPO
     mesh.position.set(0, yPos, 0); 
     return mesh;
 }
@@ -261,7 +257,7 @@ function updateUIVisibility() {
     interactableGroup.visible = isVR;
     
     uiMenu.style.display = (!isVR && currentState === 'MENU') ? 'flex' : 'none';
-    uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex' : 'none';
+    uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex : 'none';
 
     if (!isVR) {
         if (currentState === 'ESCENARIO_1') {
@@ -279,9 +275,6 @@ function handleGazeInteraction(delta) {
     if (!renderer.xr.isPresenting) return; // Solo funciona en VR
 
     raycaster.setFromCamera({ x: 0, y: 0 }, camera); 
-    // ¡Ahora el rayo SÍ puede chocar con los botones,
-    // porque los botones están en la escena (en el mundo)
-    // y el rayo sale de la cámara!
     const intersects = raycaster.intersectObjects(interactableGroup.children);
 
     let target = null;
@@ -301,7 +294,9 @@ function handleGazeInteraction(delta) {
         gazeDwellTime += delta; 
 
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
-            onGazeSelect(currentGGazeTarget); 
+            // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
+            // Se corrigió "currentGGazeTarget" a "currentGazeTarget"
+            onGazeSelect(currentGazeTarget); 
             gazeDwellTime = 0; 
         }
     }
