@@ -136,7 +136,7 @@ function setupMenu() {
     camera.position.set(0, 1.6, 3);
     
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshNormalMaterial();
+    const material = new THREE.MeshBasicMaterial();
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(0, 1.6, -2); 
     scene.add(cube);
@@ -257,7 +257,7 @@ function updateUIVisibility() {
     interactableGroup.visible = isVR;
     
     uiMenu.style.display = (!isVR && currentState === 'MENU') ? 'flex' : 'none';
-    uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex : 'none';
+    uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex' : 'none';
 
     if (!isVR) {
         if (currentState === 'ESCENARIO_1') {
@@ -294,7 +294,7 @@ function handleGazeInteraction(delta) {
         gazeDwellTime += delta; 
 
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
-            // --- ¡AQUÍ ESTÁ EL ARREGLO! ---
+            // --- ¡CORRECCIÓN AQUÍ! ---
             // Se corrigió "currentGGazeTarget" a "currentGazeTarget"
             onGazeSelect(currentGazeTarget); 
             gazeDwellTime = 0; 
