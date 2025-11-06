@@ -85,7 +85,7 @@ button:hover {
     color: #000;
 }
 
-/* --- ¡CORRECCIÓN BOTÓN DE VR! --- */
+
 /* Arregla la barra magenta en móviles */
 #VRButton {
     z-index: 100 !important;
