@@ -11,8 +11,8 @@ let currentState = 'MENU';
 
 // --- Variables para VR y Gaze ---
 let reticle, raycaster, interactableGroup;
-let currentGazeTarget = null; // Qué objeto estamos mirando
-let gazeDwellTime = 0; // Cuánto tiempo lo hemos mirado
+let currentGazeTarget = null;
+let gazeDwellTime = 0;
 const DWELL_TIME_THRESHOLD = 1.5; // 1.5 segundos
 
 // Elementos de la UI HTML
@@ -130,7 +130,7 @@ function setupMenu() {
     scene.add(cube);
 }
 
-// --- ¡CORRECCIÓN 2: ESCENARIO (BUS STOP)! ---
+// --- ¡CORRECCIÓN 1: ESCENARIO (Bus Stop)! ---
 function setupEscenario1() {
     scene.background = new THREE.Color(0x88ccee); // Cielo azul
     scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
@@ -147,11 +147,11 @@ function setupEscenario1() {
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
-        // 2. Escalar el vecindario (0.1 = 10% del tamaño original)
+        // 2. Escalar el vecindario
         gltf.scene.scale.set(0.1, 0.1, 0.1);
         
         // 3. ¡LA CALLE A TUS PIES!
-        // Bajar el escenario 1.6m para que el suelo
+        // Bajamos el escenario 1.6m para que el suelo
         // del modelo (Y=0) coincida con tus pies (Y=0)
         gltf.scene.position.y = -1.6; 
         
@@ -159,7 +159,7 @@ function setupEscenario1() {
     });
 }
 
-// --- ¡CORRECCIÓN 3: PERSONAJE (KGR)! ---
+// --- ¡CORRECCIÓN 2: PERSONAJE (KGR)! ---
 function setupEscenario2() {
     scene.background = new THREE.Color(0x101010); // Fondo oscuro
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
@@ -178,16 +178,15 @@ function setupEscenario2() {
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
-        // 3. ¡ESCALA CORREGIDA!
-        // Ni muy grande (dentro) ni muy pequeño (punto).
-        // 0.01 o 0.02 es buen valor. Empecemos con 0.01
-        fbxModel.scale.set(0.01, 0.01, 0.01);
+        // 3. ¡ESCALA CORREGIDA! Estabas dentro de las piernas.
+        // Lo hacemos 10 veces más pequeño que 0.01.
+        fbxModel.scale.set(0.002, 0.002, 0.002);
         
         // 4. ¡POSICIÓN A LA IZQUIERDA!
         // X: -1.0 (a la izquierda)
-        // Y: 0.1 (sobre el suelo)
+        // Y: 0 (en el suelo)
         // Z: 0 (5m en frente de la cámara)
-        fbxModel.position.set(-1.0, 0.1, 0); 
+        fbxModel.position.set(-1.0, 0, 0); // Ajusta X si lo quieres más a la izquierda
         
         scene.add(fbxModel);
 
@@ -228,7 +227,11 @@ function createButtonMesh(text, name, yPos) {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
-    mesh.position.set(0, yPos + 1.0, -2.5); // Botones a altura de ojos
+    
+    // --- ¡CORRECCIÓN 3: BOTONES VR ABAJO! ---
+    // Posiciona los botones 0.5m por debajo del centro de la vista
+    // yPos (0.3 o 0) - 0.5 = -0.2m o -0.5m
+    mesh.position.set(0, yPos - 0.5, -2.5); 
 
     return mesh;
 }
