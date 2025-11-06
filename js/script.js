@@ -3,9 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-// Usamos el VRButton estándar, como pediste
 import { VRButton } from 'three/addons/webxr/VRButton.js';
-
 
 // --- 2. Configuración Global ---
 let camera, scene, renderer;
@@ -17,21 +15,18 @@ const contentHolder = new THREE.Group();
 // --- Variables para VR y Controles ---
 let playerRig; 
 let controller1, controller2;
-// ¡ELIMINADO! controllerGrip1, controllerGrip2
 
 let raycaster;
 let teleportMarker; 
 let groundPlane; 
 const tempMatrix = new THREE.Matrix4();
 
-
-
 // --- Variables para Movimiento Suave ---
 const speed = 2.0; 
 const direction = new THREE.Vector3();
 const strafe = new THREE.Vector3();
 
-// --- NUEVO: Referencias a los botones HTML ---
+// --- Referencias a los botones HTML ---
 const btnScene = document.getElementById('btnScene');
 const btnCharacter = document.getElementById('btnCharacter');
 
@@ -43,12 +38,13 @@ function init() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x101010);
 
-    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+    // MODIFICADO: Aumentamos el 'far' plane para ver el vecindario
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000); 
     camera.position.set(0, 1.6, 0); // Altura de ojos
     
     playerRig = new THREE.Group();
- 
-    playerRig.position.set(0, 0, 10); // 10 metros "atrás"
+    // Dejamos al jugador en (0,0,10) como punto de inicio
+    playerRig.position.set(0, 0, 10); 
     playerRig.add(camera);
     scene.add(playerRig);
     
@@ -63,21 +59,17 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.xr.enabled = true; 
     document.body.appendChild(renderer.domElement);
-    // Usa el botón estándar
     document.body.appendChild(VRButton.createButton(renderer));
 
     controls = new OrbitControls(camera, renderer.domElement);
-    // Apuntar al centro del vecindario
-    controls.target.set(0, 1.6, 0); 
+    controls.target.set(0, 1.6, 0); // Apuntar al centro
     controls.update();
 
     scene.add(contentHolder);
     
     setupVR();
     
-
-
-    // --- NUEVO: Listeners para los botones HTML ---
+    // --- Listeners para los botones HTML ---
     btnScene.addEventListener('click', () => {
         loadScene();
         btnScene.classList.add('active');
@@ -99,10 +91,8 @@ function init() {
     renderer.setAnimationLoop(animate);
 }
 
-
 // --- Configuración de Controles VR ---
 function setupVR() {
-    // Suelo Invisible
     const groundGeometry = new THREE.PlaneGeometry(100, 100); 
     groundGeometry.rotateX(-Math.PI / 2);
     const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 });
@@ -110,7 +100,6 @@ function setupVR() {
     groundPlane.position.y = 0; 
     scene.add(groundPlane); 
 
-    // Marcador de Teletransporte
     const markerGeometry = new THREE.RingGeometry(0.25, 0.3, 32);
     markerGeometry.rotateX(-Math.PI / 2);
     const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
@@ -120,21 +109,15 @@ function setupVR() {
 
     raycaster = new THREE.Raycaster();
 
-    // --- Controlador 1 (solo para lógica) ---
     controller1 = renderer.xr.getController(0);
     controller1.addEventListener('selectstart', onSelectStart);
     controller1.addEventListener('selectend', onSelectEnd);
     playerRig.add(controller1);
 
-
-
-    // --- Controlador 2 (solo para lógica) ---
     controller2 = renderer.xr.getController(1);
-    // Añadimos listeners al control 2 también
     controller2.addEventListener('selectstart', onSelectStart);
     controller2.addEventListener('selectend', onSelectEnd);
     playerRig.add(controller2);
-    // ¡ELIMINADO! Modelo de control 2
 }
 
 // --- Funciones de Eventos de Control ---
@@ -148,8 +131,6 @@ function onSelectEnd(event) {
     const controller = event.target;
     controller.userData.teleporting = false;
 
-    // --- LÓGICA DE CLIC SIMPLIFICADA ---
-    // Si el marcador era visible, teletransporta
     if (teleportMarker.visible) {
         playerRig.position.set(teleportMarker.position.x, 0, teleportMarker.position.z);
         teleportMarker.visible = false;
@@ -160,22 +141,20 @@ function onSelectEnd(event) {
 function handleTeleportRaycast(controller) {
     if (!controller.visible) return;
 
-    // Solo mostrar el rayo si el gatillo está presionado
     if (controller.userData.teleporting === true) {
         tempMatrix.identity().extractRotation(controller.matrixWorld);
         raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
         raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-        // Comprobar suelo
         const groundIntersects = raycaster.intersectObjects([groundPlane, contentHolder], true); 
         if (groundIntersects.length > 0) {
             teleportMarker.position.copy(groundIntersects[0].point);
             teleportMarker.visible = true;
         } else {
-            teleportMarker.visible = false;
+            teleportMarker.visible = false; 
         }
     } else {
-        teleportMarker.visible = false; // Ocultar si no se presiona el gatillo
+        teleportMarker.visible = false; 
     }
 }
 
@@ -185,7 +164,6 @@ function handleThumbstickMovement(delta) {
     if (!session || !session.inputSources) return;
     let moveVector = new THREE.Vector2();
     for (const source of session.inputSources) {
-        // Asumir que el control izquierdo es para moverse
         if (source.gamepad && source.gamepad.axes.length >= 4 && source.handedness === 'left') {
             moveVector.x = source.gamepad.axes[2];
             moveVector.y = source.gamepad.axes[3];
@@ -214,21 +192,22 @@ function clearContent() {
     while (contentHolder.children.length > 0) {
         contentHolder.remove(contentHolder.children[0]);
     }
-    // ¡ELIMINADO! uiButtonsArray.forEach...
 }
 
 function loadScene() {
     clearContent();
     
-    // Posicionar el escenario en el origen.
-    // Como el playerRig está en (0,0,10), lo verá de frente.
+    // Dejamos el contentHolder en el origen
     contentHolder.position.set(0, 0, 0); 
 
     const loader = new GLTFLoader();
     loader.load(
         'models/bus_stop.glb',
         (gltf) => {
-            gltf.scene.scale.set(1, 1, 1);
+            // --- ¡CORRECCIÓN 1: ESCALA! ---
+            // El vecindario se escala a 0.1 (10% de su tamaño).
+            // Si es muy pequeño, prueba 0.5. Si sigue siendo gigante, prueba 0.01
+            gltf.scene.scale.set(0.1, 0.1, 0.1);
             contentHolder.add(gltf.scene);
             console.log("Escenario cargado.");
         },
@@ -240,8 +219,7 @@ function loadScene() {
 function loadCharacter() {
     clearContent();
     
-    // Posicionar el contentHolder en el origen
-    // Como el playerRig está en (0,0,10), lo verá de frente
+    // Dejamos el contentHolder en el origen
     contentHolder.position.set(0, 0, 0); 
 
     const fbxLoader = new FBXLoader();
@@ -250,10 +228,16 @@ function loadCharacter() {
         (fbxModel) => {
             console.log("Modelo KGR cargado.");
             
-            fbxModel.scale.set(0.02, 0.02, 0.02); // Escala
+            // Mantenemos la escala pequeña
+            fbxModel.scale.set(0.02, 0.02, 0.02);
             
-
-            fbxModel.position.set(-1.0, 0.1, 0); 
+            // --- ¡CORRECCIÓN 2: POSICIÓN VR DE FRENTE! ---
+            // El jugador está en Z=10 (o Z=5, etc).
+            // Para que el personaje aparezca DE FRENTE en 2D y VR:
+            // Lo ponemos 3 metros "delante" del origen (Z=3).
+            // X=0 (para centrarlo).
+            // Y=0.1 (para que esté sobre el suelo).
+            fbxModel.position.set(0, 0.1, 3); 
             
             const animLoader = new FBXLoader();
             animLoader.load(
@@ -284,11 +268,10 @@ function animate() {
     }
 
     if (renderer.xr.isPresenting === false) {
-        controls.update(); // Solo actualizar órbita si no estamos en VR
+        controls.update(); // Esto hace que OrbitControls funcione
     }
     
     if (renderer.xr.isPresenting) {
-        // Lógica de controles VR
         handleTeleportRaycast(controller1); 
         handleTeleportRaycast(controller2); 
         handleThumbstickMovement(delta);
