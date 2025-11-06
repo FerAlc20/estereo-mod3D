@@ -1,288 +1,346 @@
-// --- 1. Importaciones de Módulos de Three.js ---
 import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { VRButton } from 'three/addons/webxr/VRButton.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
-import { VRButton } from 'three/addons/webxr/VRButton.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// --- 2. Configuración Global ---
-let camera, scene, renderer;
+// --- Variables Globales ---
+let camera, scene, renderer, clock, mixer;
 let controls;
-let mixer; // Para las animaciones
-const clock = new THREE.Clock();
-const contentHolder = new THREE.Group();
+let currentState = 'MENU';
 
-// --- Variables para VR y Controles ---
-let playerRig; 
-let controller1, controller2;
+// --- Variables para VR y Gaze ---
+let reticle, raycaster, interactableGroup;
+let currentGazeTarget = null; // Qué objeto estamos mirando
+let gazeDwellTime = 0; // Cuánto tiempo lo hemos mirado
+const DWELL_TIME_THRESHOLD = 1.5; // 1.5 segundos (más rápido)
 
-let raycaster;
-let teleportMarker; 
-let groundPlane; 
-const tempMatrix = new THREE.Matrix4();
+// Elementos de la UI HTML
+const uiMenu = document.getElementById('menu-ui');
+const uiGame = document.getElementById('game-ui');
+const btnToEnv1 = document.getElementById('btn-to-env1');
+const btnToEnv2 = document.getElementById('btn-to-env2');
+const btnToMenu = document.getElementById('btn-to-menu');
+const btnToOther = document.getElementById('btn-to-other');
+const container = document.getElementById('app-container');
 
-// --- Variables para Movimiento Suave ---
-const speed = 2.0; 
-const direction = new THREE.Vector3();
-const strafe = new THREE.Vector3();
-
-// --- Referencias a los botones HTML ---
-const btnScene = document.getElementById('btnScene');
-const btnCharacter = document.getElementById('btnCharacter');
-
-
-// --- 3. Función Principal de Inicialización ---
-init();
-
+// --- Inicialización ---
 function init() {
+    clock = new THREE.Clock();
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101010);
-
-    // MODIFICADO: Aumentamos el 'far' plane para ver el vecindario
-    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000); 
-    camera.position.set(0, 1.6, 0); // Altura de ojos
-    
-    playerRig = new THREE.Group();
-    // Dejamos al jugador en (0,0,10) como punto de inicio
-    playerRig.position.set(0, 0, 10); 
-    playerRig.add(camera);
-    scene.add(playerRig);
-    
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
-    scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
-    dirLight.position.set(2, 5, 5);
-    scene.add(dirLight);
+    camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.xr.enabled = true; 
-    document.body.appendChild(renderer.domElement);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setAnimationLoop(animate);
+    renderer.xr.enabled = true;
     document.body.appendChild(VRButton.createButton(renderer));
+    container.appendChild(renderer.domElement);
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.6, 0); // Apuntar al centro
-    controls.update();
+    // --- Configuración de Interacción VR ---
+    raycaster = new THREE.Raycaster();
+    interactableGroup = new THREE.Group();
+    scene.add(interactableGroup);
 
-    scene.add(contentHolder);
-    
-    setupVR();
-    
-    // --- Listeners para los botones HTML ---
-    btnScene.addEventListener('click', () => {
-        loadScene();
-        btnScene.classList.add('active');
-        btnCharacter.classList.remove('active');
+    // 1. El punto blanco (Retícula)
+    const reticleGeo = new THREE.CircleGeometry(0.003, 16); // Un poco más grande
+    const reticleMat = new THREE.MeshBasicMaterial({
+        color: 0x00ffff, // Color cian
+        fog: false,
+        depthTest: false, // Siempre visible
+        transparent: true,
+        opacity: 0.8
     });
+    reticle = new THREE.Mesh(reticleGeo, reticleMat);
+    reticle.position.z = -0.5; // Más cerca
+    reticle.renderOrder = 999; // Renderizar encima de todo
+    camera.add(reticle);
 
-    btnCharacter.addEventListener('click', () => {
-        loadCharacter();
-        btnScene.classList.remove('active');
-        btnCharacter.classList.add('active');
-    });
-    // --- FIN DE LISTENERS ---
+    // 2. Listeners de sesión VR
+    renderer.xr.addEventListener('sessionstart', updateUIVisibility);
+    renderer.xr.addEventListener('sessionend', updateUIVisibility);
+
+    // --- Eventos de la UI HTML ---
+    btnToEnv1.onclick = () => switchScene('ESCENARIO_1');
+    btnToEnv2.onclick = () => switchScene('ESCENARIO_2');
+    btnToMenu.onclick = () => switchScene('MENU');
 
     window.addEventListener('resize', onWindowResize);
-    
-    // Cargar el escenario por defecto al inicio
-    loadScene(); 
-
-    renderer.setAnimationLoop(animate);
+    switchScene('MENU');
 }
 
-// --- Configuración de Controles VR ---
-function setupVR() {
-    const groundGeometry = new THREE.PlaneGeometry(100, 100); 
-    groundGeometry.rotateX(-Math.PI / 2);
-    const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.0 });
-    groundPlane = new THREE.Mesh(groundGeometry, groundMaterial);
-    groundPlane.position.y = 0; 
-    scene.add(groundPlane); 
-
-    const markerGeometry = new THREE.RingGeometry(0.25, 0.3, 32);
-    markerGeometry.rotateX(-Math.PI / 2);
-    const markerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-    teleportMarker = new THREE.Mesh(markerGeometry, markerMaterial);
-    teleportMarker.visible = false;
-    scene.add(teleportMarker);
-
-    raycaster = new THREE.Raycaster();
-
-    controller1 = renderer.xr.getController(0);
-    controller1.addEventListener('selectstart', onSelectStart);
-    controller1.addEventListener('selectend', onSelectEnd);
-    playerRig.add(controller1);
-
-    controller2 = renderer.xr.getController(1);
-    controller2.addEventListener('selectstart', onSelectStart);
-    controller2.addEventListener('selectend', onSelectEnd);
-    playerRig.add(controller2);
-}
-
-// --- Funciones de Eventos de Control ---
-
-function onSelectStart(event) {
-    const controller = event.target;
-    controller.userData.teleporting = true;
-}
-
-function onSelectEnd(event) {
-    const controller = event.target;
-    controller.userData.teleporting = false;
-
-    if (teleportMarker.visible) {
-        playerRig.position.set(teleportMarker.position.x, 0, teleportMarker.position.z);
-        teleportMarker.visible = false;
-    }
-}
-
-// --- Lógica del Raycaster (solo teletransporte) ---
-function handleTeleportRaycast(controller) {
-    if (!controller.visible) return;
-
-    if (controller.userData.teleporting === true) {
-        tempMatrix.identity().extractRotation(controller.matrixWorld);
-        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-        const groundIntersects = raycaster.intersectObjects([groundPlane, contentHolder], true); 
-        if (groundIntersects.length > 0) {
-            teleportMarker.position.copy(groundIntersects[0].point);
-            teleportMarker.visible = true;
-        } else {
-            teleportMarker.visible = false; 
-        }
-    } else {
-        teleportMarker.visible = false; 
-    }
-}
-
-// --- Manejador de Movimiento con Thumbstick ---
-function handleThumbstickMovement(delta) {
-    const session = renderer.xr.getSession();
-    if (!session || !session.inputSources) return;
-    let moveVector = new THREE.Vector2();
-    for (const source of session.inputSources) {
-        if (source.gamepad && source.gamepad.axes.length >= 4 && source.handedness === 'left') {
-            moveVector.x = source.gamepad.axes[2];
-            moveVector.y = source.gamepad.axes[3];
-            if (Math.abs(moveVector.x) < 0.1) moveVector.x = 0;
-            if (Math.abs(moveVector.y) < 0.1) moveVector.y = 0;
-            if (moveVector.x !== 0 || moveVector.y !== 0) break;
-        }
-    }
-    if (moveVector.x === 0 && moveVector.y === 0) return;
-    camera.getWorldDirection(direction);
-    direction.y = 0; 
-    direction.normalize();
-    strafe.crossVectors(camera.up, direction).multiplyScalar(-1);
-    const forwardMove = direction.clone().multiplyScalar(-moveVector.y * speed * delta);
-    const strafeMove = strafe.clone().multiplyScalar(moveVector.x * speed * delta);
-    playerRig.position.add(forwardMove).add(strafeMove);
-}
-
-// --- 4. Funciones de Carga de Contenido ---
-
-function clearContent() {
-    if (mixer) {
-        mixer.stopAllAction();
-        mixer = null;
-    }
-    while (contentHolder.children.length > 0) {
-        contentHolder.remove(contentHolder.children[0]);
-    }
-}
-
-function loadScene() {
-    clearContent();
-    
-    // Dejamos el contentHolder en el origen
-    contentHolder.position.set(0, 0, 0); 
-
-    const loader = new GLTFLoader();
-    loader.load(
-        'models/bus_stop.glb',
-        (gltf) => {
-            // --- ¡CORRECCIÓN 1: ESCALA! ---
-            // El vecindario se escala a 0.1 (10% de su tamaño).
-            // Si es muy pequeño, prueba 0.5. Si sigue siendo gigante, prueba 0.01
-            gltf.scene.scale.set(0.1, 0.1, 0.1);
-            contentHolder.add(gltf.scene);
-            console.log("Escenario cargado.");
-        },
-        undefined, 
-        (error) => { console.error("Error cargando el escenario:", error); }
-    );
-}
-
-function loadCharacter() {
-    clearContent();
-    
-    // Dejamos el contentHolder en el origen
-    contentHolder.position.set(0, 0, 0); 
-
-    const fbxLoader = new FBXLoader();
-    fbxLoader.load(
-        'models/KGR.fbx',
-        (fbxModel) => {
-            console.log("Modelo KGR cargado.");
-            
-            // Mantenemos la escala pequeña
-            fbxModel.scale.set(0.02, 0.02, 0.02);
-            
-            // --- ¡CORRECCIÓN 2: POSICIÓN VR DE FRENTE! ---
-            // El jugador está en Z=10 (o Z=5, etc).
-            // Para que el personaje aparezca DE FRENTE en 2D y VR:
-            // Lo ponemos 3 metros "delante" del origen (Z=3).
-            // X=0 (para centrarlo).
-            // Y=0.1 (para que esté sobre el suelo).
-            fbxModel.position.set(0, 0.1, 3); 
-            
-            const animLoader = new FBXLoader();
-            animLoader.load(
-                'models/Silly Dancing.fbx',
-                (fbxAnim) => {
-                    console.log("Animación 'Silly Dancing' cargada.");
-                    mixer = new THREE.AnimationMixer(fbxModel);
-                    const action = mixer.clipAction(fbxAnim.animations[0]);
-                    action.play();
-                    contentHolder.add(fbxModel);
-                },
-                undefined,
-                (error) => { console.error("Error cargando la animación:", error); }
-            );
-        },
-        undefined,
-        (error) => { console.error("Error cargando el modelo KGR:", error); }
-    );
-}
-
-// --- 5. Bucle de Animación (Render Loop) ---
-
+// --- Bucle de Animación ---
 function animate() {
     const delta = clock.getDelta();
 
-    if (mixer) {
-        mixer.update(delta);
+    if (currentState === 'ESCENARIO_1' || currentState === 'ESCENARIO_2') {
+        if (controls) controls.update();
+    }
+    if (currentState === 'ESCENARIO_2') {
+        if (mixer) mixer.update(delta);
     }
 
-    if (renderer.xr.isPresenting === false) {
-        controls.update(); // Esto hace que OrbitControls funcione
-    }
-    
-    if (renderer.xr.isPresenting) {
-        handleTeleportRaycast(controller1); 
-        handleTeleportRaycast(controller2); 
-        handleThumbstickMovement(delta);
-    }
+    // Comprobar "hover" y "clic por mirada" en VR
+    handleGazeInteraction(delta);
 
     renderer.render(scene, camera);
 }
 
-// --- 6. Manejador de Redimensión de Ventana ---
+// --- Manejador de Estado (Cambio de Escena) ---
+function switchScene(newState) {
+    currentState = newState;
+
+    scene.clear();
+    interactableGroup.clear();
+    if (mixer) mixer = null;
+    if (controls) controls.dispose();
+
+    // Volver a añadir elementos persistentes
+    scene.add(camera); // La cámara (con el retículo)
+    scene.add(interactableGroup); // El grupo de botones
+
+    // Resetear el estado de la mirada
+    currentGazeTarget = null;
+    gazeDwellTime = 0;
+
+    switch (newState) {
+        case 'MENU':
+            setupMenu();
+            createVRMenu();
+            break;
+        case 'ESCENARIO_1':
+            setupEscenario1();
+            createVRGameUI();
+            break;
+        case 'ESCENARIO_2':
+            setupEscenario2();
+            createVRGameUI();
+            break;
+    }
+    updateUIVisibility();
+}
+
+// --- Configuración de Escenas ---
+function setupMenu() {
+    scene.background = new THREE.Color(0x101010); // Fondo oscuro
+    camera.position.set(0, 1.6, 0.1); // Altura de ojos
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const material = new THREE.MeshNormalMaterial();
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.set(0, 1.6, -2); // A la altura de los ojos
+    scene.add(cube);
+}
+
+function setupEscenario1() {
+    scene.background = new THREE.Color(0x88ccee);
+    scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    directionalLight.position.set(-5, 25, -1);
+    scene.add(directionalLight);
+    
+    // Posición inicial fuera del "cuarto", a altura de ojos
+    camera.position.set(0, 1.6, 5); 
+    
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, 0); // Mirar al centro
+    controls.enableDamping = true;
+    
+    const loader = new GLTFLoader();
+    loader.load('models/bus_stop.glb', (gltf) => {
+        // Escala que encontramos en pasos anteriores
+        gltf.scene.scale.set(0.1, 0.1, 0.1);
+        scene.add(gltf.scene);
+    });
+}
+
+function setupEscenario2() {
+    scene.background = new THREE.Color(0x101010); // Fondo oscuro
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
+    dirLight.position.set(1, 2, 3);
+    scene.add(dirLight);
+    
+    // Posición inicial del jugador
+    camera.position.set(0, 1.6, 5); 
+    
+    controls = new OrbitControls(camera, renderer.domElement);
+    // --- ¡CALIBRACIÓN! ---
+    // Apuntar los controles de PC a la nueva posición del personaje
+    controls.target.set(-1.0, 1, 0); // Apuntar a X=-1.0
+    controls.enableDamping = true;
+    
+    // Cargar modelo FBX
+    const fbxLoader = new FBXLoader();
+    fbxLoader.load('models/KGR.fbx', (fbxModel) => {
+        
+        // --- ¡CALIBRACIÓN DE POSICIÓN IZQUIERDA! ---
+        // Lo ponemos en X: -1.0 (más a la izquierda)
+        // Y: 0.1 (sobre el suelo)
+        // Z: 0 (en el centro, lo veremos desde Z=5)
+        fbxModel.position.set(-1.0, 0.1, 0); 
+        
+        // Escala que encontramos en pasos anteriores
+        fbxModel.scale.set(0.02, 0.02, 0.02);
+        
+        scene.add(fbxModel);
+
+        // Cargar animación FBX
+        const animLoader = new FBXLoader();
+        animLoader.load('models/Silly Dancing.fbx', (fbxAnim) => {
+            mixer = new THREE.AnimationMixer(fbxModel);
+            mixer.clipAction(fbxAnim.animations[0]).play();
+        });
+    });
+}
+
+// --- Funciones de UI VR ---
+
+function createButtonMesh(text, name, yPos) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 512;
+    canvas.height = 128;
+    ctx.fillStyle = '#000000'; // Fondo negro
+    ctx.strokeStyle = '#00ffff'; // Borde cian
+    ctx.lineWidth = 15;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00ffff'; // Texto cian
+    ctx.font = 'bold 50px Courier New'; // Fuente retro
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const geometry = new THREE.PlaneGeometry(1, 0.25);
+
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthTest: false, // No comprueba la profundidad
+        renderOrder: 998  // Renderiza casi al final
+    });
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.name = name;
+    // Posiciona los botones a la altura de los ojos
+    mesh.position.set(0, yPos + 1.0, -2.5); // 2.5m adelante
+
+    return mesh;
+}
+
+function createVRMenu() {
+    // Texto de botones actualizado
+    const btn1 = createButtonMesh('Ver Escenario', 'btn-to-env1', 0.3);
+    const btn2 = createButtonMesh('Ver Personaje', 'btn-to-env2', 0);
+    interactableGroup.add(btn1);
+    interactableGroup.add(btn2);
+}
+
+function createVRGameUI() {
+    const btnMenu = createButtonMesh('Volver al Menú', 'btn-to-menu', 0.3);
+    interactableGroup.add(btnMenu);
+
+    let text, name;
+    if (currentState === 'ESCENARIO_1') {
+        text = 'Ver Personaje';
+        name = 'btn-to-env2';
+    } else {
+        text = 'Ver Escenario';
+        name = 'btn-to-env1';
+    }
+    const btnOther = createButtonMesh(text, name, 0);
+    interactableGroup.add(btnOther);
+}
+
+function updateUIVisibility() {
+    const isVR = renderer.xr.isPresenting;
+    reticle.visible = isVR; // El punto cian solo se ve en VR
+    interactableGroup.visible = isVR; // Los botones 3D solo se ven en VR
+    
+    // Los menús HTML solo se ven si NO estamos en VR
+    uiMenu.style.display = (isVR || currentState !== 'MENU') ? 'none' : 'flex';
+    uiGame.style.display = (isVR || currentState === 'MENU') ? 'none' : 'flex';
+
+    if (!isVR) {
+        // Actualizar el texto del botón "otro" en 2D
+        if (currentState === 'ESCENARIO_1') {
+            btnToOther.innerText = 'Ver Personaje (KGR)';
+            btnToOther.onclick = () => switchScene('ESCENARIO_2');
+        } else if (currentState === 'ESCENARIO_2') {
+            btnToOther.innerText = 'Ver Escenario (Bus Stop)';
+            btnToOther.onclick = () => switchScene('ESCENARIO_1');
+        }
+    }
+}
+
+// --- Funciones de Interacción por Mirada (Gaze) ---
+
+function handleGazeInteraction(delta) {
+    if (!renderer.xr.isPresenting) return; // Solo en VR
+
+    // 1. Lanzar el rayo desde el centro de la cámara
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    const intersects = raycaster.intersectObjects(interactableGroup.children);
+
+    let target = null;
+    if (intersects.length > 0) {
+        target = intersects[0].object; // El objeto más cercano
+    }
+
+    // 2. Comprobar si estamos mirando un objeto nuevo o el mismo
+    if (target !== currentGazeTarget) {
+        currentGazeTarget = target;
+        gazeDwellTime = 0; // Reiniciar temporizador
+    }
+
+    // 3. Resetear la escala de todos los botones
+    interactableGroup.children.forEach(child => {
+        child.scale.set(1, 1, 1);
+        // (Podríamos cambiar el color aquí también)
+    });
+
+    // 4. Si hay un objetivo, manejar el "hover" y el "clic"
+    if (currentGazeTarget) {
+        // Efecto "hover": agrandar el botón
+        currentGazeTarget.scale.set(1.2, 1.2, 1.2);
+
+        // Incrementar el temporizador
+        gazeDwellTime += delta;
+
+        // 5. Comprobar si se cumplió el tiempo
+        if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
+            onGazeSelect(currentGazeTarget); // ¡Hacer clic!
+            gazeDwellTime = 0; // Resetear para evitar clics múltiples
+        }
+    }
+}
+
+function onGazeSelect(selectedObject) {
+    if (!selectedObject) return;
+
+    // Cambia de escena según el nombre del botón
+    switch (selectedObject.name) {
+        case 'btn-to-env1':
+            switchScene('ESCENARIO_1');
+            break;
+        case 'btn-to-env2':
+            switchScene('ESCENARIO_2');
+            break;
+        case 'btn-to-menu':
+            switchScene('MENU');
+            break;
+    }
+}
+
+// --- Manejador de Redimensión ---
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 }
+
+init();
