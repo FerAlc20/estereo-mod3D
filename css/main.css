@@ -26,11 +26,11 @@ body {
     pointer-events: none;
     color: white;
     text-shadow: 2px 2px 4px #000000;
-    z-index: 10; /* Añadido para asegurar que esté encima */
+    z-index: 10;
 }
 
 .menu {
-    background: rgba(0, 0, 0, 0.7); /* Fondo más oscuro */
+    background: rgba(0, 0, 0, 0.7);
     border-radius: 10px;
     padding: 20px;
     display: flex;
@@ -65,18 +65,8 @@ button:hover {
     color: #000;
 }
 
-/* El botón de VR que añade Three.js */
+
 #VRButton {
-    z-index: 100 !important;
-    position: fixed !important;
-    top: 20px !important;
-    right: 20px !important;
-    background: #f0f !important;
-    border: 2px solid #f0f !important;
-    color: #000 !important;
-    font-family: 'Courier New', Courier, monospace !important;
-    font-weight: bold !important;
-    box-shadow: 0 0 15px #f0f;
-    border-radius: 8px !important;
-    padding: 10px 15px !important;
+    /* ¡Lo ocultamos para siempre! */
+    display: none !important;
 }
