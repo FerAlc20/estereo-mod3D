@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+// Usamos el VRButton estándar, como pediste
 import { VRButton } from 'three/addons/webxr/VRButton.js';
-import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js'; 
+
 
 // --- 2. Configuración Global ---
 let camera, scene, renderer;
@@ -16,21 +17,24 @@ const contentHolder = new THREE.Group();
 // --- Variables para VR y Controles ---
 let playerRig; 
 let controller1, controller2;
-let controllerGrip1, controllerGrip2;
+// ¡ELIMINADO! controllerGrip1, controllerGrip2
 
 let raycaster;
 let teleportMarker; 
 let groundPlane; 
 const tempMatrix = new THREE.Matrix4();
 
-// --- Variables para UI en VR ---
-let uiButtonsArray = [];
-let controllerPointer; // Láser del control
+
 
 // --- Variables para Movimiento Suave ---
 const speed = 2.0; 
 const direction = new THREE.Vector3();
 const strafe = new THREE.Vector3();
+
+// --- NUEVO: Referencias a los botones HTML ---
+const btnScene = document.getElementById('btnScene');
+const btnCharacter = document.getElementById('btnCharacter');
+
 
 // --- 3. Función Principal de Inicialización ---
 init();
@@ -43,7 +47,8 @@ function init() {
     camera.position.set(0, 1.6, 0); // Altura de ojos
     
     playerRig = new THREE.Group();
-    playerRig.position.set(0, 0, 0); // El jugador NUNCA se mueve de (0,0,0)
+ 
+    playerRig.position.set(0, 0, 10); // 10 metros "atrás"
     playerRig.add(camera);
     scene.add(playerRig);
     
@@ -58,18 +63,33 @@ function init() {
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.xr.enabled = true; 
     document.body.appendChild(renderer.domElement);
+    // Usa el botón estándar
     document.body.appendChild(VRButton.createButton(renderer));
 
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.6, -1); // Mirar 1m adelante
+    // Apuntar al centro del vecindario
+    controls.target.set(0, 1.6, 0); 
     controls.update();
 
     scene.add(contentHolder);
     
     setupVR();
     
-    // Crear la Interfaz en 3D
-    createVRUI();
+
+
+    // --- NUEVO: Listeners para los botones HTML ---
+    btnScene.addEventListener('click', () => {
+        loadScene();
+        btnScene.classList.add('active');
+        btnCharacter.classList.remove('active');
+    });
+
+    btnCharacter.addEventListener('click', () => {
+        loadCharacter();
+        btnScene.classList.remove('active');
+        btnCharacter.classList.add('active');
+    });
+    // --- FIN DE LISTENERS ---
 
     window.addEventListener('resize', onWindowResize);
     
@@ -79,54 +99,6 @@ function init() {
     renderer.setAnimationLoop(animate);
 }
 
-// --- Función para Crear Botones en 3D ---
-function createVRUI() {
-    // Función para crear el texto del botón
-    function createButtonTexture(text) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 128;
-        const context = canvas.getContext('2d');
-        
-        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        context.strokeStyle = '#00ffff';
-        context.lineWidth = 10;
-        context.strokeRect(0, 0, canvas.width, canvas.height);
-        
-        context.fillStyle = '#00ffff';
-        context.font = 'bold 40px Courier New';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(text, canvas.width / 2, canvas.height / 2);
-        
-        return new THREE.CanvasTexture(canvas);
-    }
-
-    // Botón 1: Escenario
-    const btnGeo = new THREE.PlaneGeometry(1, 0.25); // 1m de ancho, 25cm de alto
-    const btnMatScene = new THREE.MeshBasicMaterial({ 
-        map: createButtonTexture('VER ESCENARIO'),
-        transparent: true
-    });
-    const btnMeshScene = new THREE.Mesh(btnGeo, btnMatScene);
-    btnMeshScene.position.set(-0.6, 1.6, -2); // 2m delante, 1.6m alto, 0.6m izquierda
-    btnMeshScene.onClick = () => loadScene(); // Función de Clic
-    scene.add(btnMeshScene);
-    uiButtonsArray.push(btnMeshScene);
-
-    // Botón 2: Personaje
-    const btnMatChar = new THREE.MeshBasicMaterial({
-        map: createButtonTexture('VER PERSONAJE'),
-        transparent: true
-    });
-    const btnMeshChar = new THREE.Mesh(btnGeo, btnMatChar);
-    btnMeshChar.position.set(0.6, 1.6, -2); // 2m delante, 1.6m alto, 0.6m derecha
-    btnMeshChar.onClick = () => loadCharacter(); // Función de Clic
-    scene.add(btnMeshChar);
-    uiButtonsArray.push(btnMeshChar);
-}
 
 // --- Configuración de Controles VR ---
 function setupVR() {
@@ -148,38 +120,26 @@ function setupVR() {
 
     raycaster = new THREE.Raycaster();
 
-    // --- Controlador 1 (con puntero) ---
+    // --- Controlador 1 (solo para lógica) ---
     controller1 = renderer.xr.getController(0);
     controller1.addEventListener('selectstart', onSelectStart);
     controller1.addEventListener('selectend', onSelectEnd);
     playerRig.add(controller1);
 
-    // --- Puntero Láser ---
-    const pointerGeo = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(0, 0, 0),
-        new THREE.Vector3(0, 0, -5) // 5m de largo
-    ]);
-    const pointerMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 });
-    controllerPointer = new THREE.Line(pointerGeo, pointerMat);
-    controller1.add(controllerPointer);
 
-    controllerGrip1 = renderer.xr.getControllerGrip(0);
-    const controllerModelFactory = new XRControllerModelFactory();
-    controllerGrip1.add(controllerModelFactory.createControllerModel(controllerGrip1));
-    playerRig.add(controllerGrip1);
 
-    // --- Controlador 2 ---
+    // --- Controlador 2 (solo para lógica) ---
     controller2 = renderer.xr.getController(1);
+    // Añadimos listeners al control 2 también
+    controller2.addEventListener('selectstart', onSelectStart);
+    controller2.addEventListener('selectend', onSelectEnd);
     playerRig.add(controller2);
-    controllerGrip2 = renderer.xr.getControllerGrip(1);
-    controllerGrip2.add(controllerModelFactory.createControllerModel(controllerGrip2));
-    playerRig.add(controllerGrip2);
+    // ¡ELIMINADO! Modelo de control 2
 }
 
 // --- Funciones de Eventos de Control ---
 
 function onSelectStart(event) {
-    // Guardamos que estamos teletransportando/clickeando
     const controller = event.target;
     controller.userData.teleporting = true;
 }
@@ -188,52 +148,25 @@ function onSelectEnd(event) {
     const controller = event.target;
     controller.userData.teleporting = false;
 
-    // --- LÓGICA DE CLIC ACTUALIZADA ---
-    // 1. Configurar raycaster desde el control
-    tempMatrix.identity().extractRotation(controller.matrixWorld);
-    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-
-    // 2. ¿Chocamos con un botón?
-    const uiIntersects = raycaster.intersectObjects(uiButtonsArray);
-    if (uiIntersects.length > 0) {
-        // ¡SÍ! Haz clic en el botón
-        uiIntersects[0].object.onClick();
-        teleportMarker.visible = false;
-    
-    } else if (teleportMarker.visible) {
-        // NO. ¿Estábamos apuntando al suelo? Teletransporte.
+    // --- LÓGICA DE CLIC SIMPLIFICADA ---
+    // Si el marcador era visible, teletransporta
+    if (teleportMarker.visible) {
         playerRig.position.set(teleportMarker.position.x, 0, teleportMarker.position.z);
-        teleportMarker.visible = false;
-    } else {
-        // No hacíamos nada
         teleportMarker.visible = false;
     }
 }
 
-// --- Lógica del Raycaster en cada frame ---
-function handleControllerRaycast(controller) {
+// --- Lógica del Raycaster (solo teletransporte) ---
+function handleTeleportRaycast(controller) {
     if (!controller.visible) return;
 
-    // 1. Configurar raycaster
-    tempMatrix.identity().extractRotation(controller.matrixWorld);
-    raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-    raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
-    
-    // 2. Resetear resaltado de botones
-    uiButtonsArray.forEach(btn => btn.material.color.set(0xffffff));
-    controllerPointer.material.color.set(0x00ffff); // Resetear color láser
+    // Solo mostrar el rayo si el gatillo está presionado
+    if (controller.userData.teleporting === true) {
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+        raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
 
-    // 3. Comprobar intersecciones UI
-    const uiIntersects = raycaster.intersectObjects(uiButtonsArray);
-    if (uiIntersects.length > 0) {
-        // Resaltar botón
-        uiIntersects[0].object.material.color.set(0x00ff00); // Verde
-        controllerPointer.material.color.set(0x00ff00); // Láser verde
-        teleportMarker.visible = false;
-
-    } else if (controller.userData.teleporting === true) {
-        // 4. Si no hay UI, comprobar suelo (solo si el gatillo está presionado)
+        // Comprobar suelo
         const groundIntersects = raycaster.intersectObjects([groundPlane, contentHolder], true); 
         if (groundIntersects.length > 0) {
             teleportMarker.position.copy(groundIntersects[0].point);
@@ -242,7 +175,7 @@ function handleControllerRaycast(controller) {
             teleportMarker.visible = false;
         }
     } else {
-        teleportMarker.visible = false;
+        teleportMarker.visible = false; // Ocultar si no se presiona el gatillo
     }
 }
 
@@ -252,7 +185,8 @@ function handleThumbstickMovement(delta) {
     if (!session || !session.inputSources) return;
     let moveVector = new THREE.Vector2();
     for (const source of session.inputSources) {
-        if (source.gamepad && source.gamepad.axes.length >= 4) {
+        // Asumir que el control izquierdo es para moverse
+        if (source.gamepad && source.gamepad.axes.length >= 4 && source.handedness === 'left') {
             moveVector.x = source.gamepad.axes[2];
             moveVector.y = source.gamepad.axes[3];
             if (Math.abs(moveVector.x) < 0.1) moveVector.x = 0;
@@ -280,14 +214,16 @@ function clearContent() {
     while (contentHolder.children.length > 0) {
         contentHolder.remove(contentHolder.children[0]);
     }
-    // Ocultamos los botones
-    uiButtonsArray.forEach(btn => btn.visible = false);
+    // ¡ELIMINADO! uiButtonsArray.forEach...
 }
 
 function loadScene() {
     clearContent();
-    uiButtonsArray.forEach(btn => btn.visible = true);
     
+    // Posicionar el escenario en el origen.
+    // Como el playerRig está en (0,0,10), lo verá de frente.
+    contentHolder.position.set(0, 0, 0); 
+
     const loader = new GLTFLoader();
     loader.load(
         'models/bus_stop.glb',
@@ -303,7 +239,10 @@ function loadScene() {
 
 function loadCharacter() {
     clearContent();
-    uiButtonsArray.forEach(btn => btn.visible = true);
+    
+    // Posicionar el contentHolder en el origen
+    // Como el playerRig está en (0,0,10), lo verá de frente
+    contentHolder.position.set(0, 0, 0); 
 
     const fbxLoader = new FBXLoader();
     fbxLoader.load(
@@ -313,11 +252,8 @@ function loadCharacter() {
             
             fbxModel.scale.set(0.02, 0.02, 0.02); // Escala
             
-            // --- ¡AQUÍ ESTÁ EL AJUSTE MANUAL! ---
-            // Ajusta el primer valor (X) para centrarlo horizontalmente.
-            // Si tienes que girar a la DERECHA, hazlo más negativo (ej. -1.5)
-            // Si tienes que girar a la IZQUIERDA, hazlo más positivo (ej. -0.5 o 0)
-            fbxModel.position.set(-1.0, 0.1, -3); 
+
+            fbxModel.position.set(-1.0, 0.1, 0); 
             
             const animLoader = new FBXLoader();
             animLoader.load(
@@ -352,7 +288,9 @@ function animate() {
     }
     
     if (renderer.xr.isPresenting) {
-        handleControllerRaycast(controller1); 
+        // Lógica de controles VR
+        handleTeleportRaycast(controller1); 
+        handleTeleportRaycast(controller2); 
         handleThumbstickMovement(delta);
     }
 
