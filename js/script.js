@@ -42,10 +42,8 @@ function init() {
 
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    // Los botones YA NO se pegan a la cámara
     
     // --- El "Cursor" (Retícula de Mirada) ---
-    // Este se queda pegado a la cámara (esto SÍ es correcto).
     const reticleGeo = new THREE.CircleGeometry(0.015, 16); // Tamaño grande
     const reticleMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff,
@@ -78,7 +76,6 @@ function animate() {
     if (controls) controls.update(delta); 
     if (mixer) mixer.update(delta); 
 
-    // Esta función hace que el "cursor estático" funcione en VR
     handleGazeInteraction(delta);
 
     renderer.render(scene, camera);
@@ -100,8 +97,7 @@ function switchScene(newState) {
 
     // AÑADIR BOTONES A LA ESCENA (AL MUNDO)
     scene.add(interactableGroup);
-    // Los posicionamos flotando en el mundo, a nivel de los ojos (1.6m)
-    // y 2.5m enfrente de donde inicias.
+    // Posicionamos los botones flotando en el mundo
     interactableGroup.position.set(0, 1.6, -2.5);
     
     // Luces genéricas
@@ -119,11 +115,11 @@ function switchScene(newState) {
             createVRMenu();
             break;
         case 'ESCENARIO_1':
-            setupEscenario1(); // No se toca
+            setupEscenario1(); // <--- ¡AQUÍ ESTÁ EL CAMBIO!
             createVRGameUI();
             break;
         case 'ESCENARIO_2':
-            setupEscenario2(); // No se toca
+            setupEscenario2(); 
             createVRGameUI();
             break;
     }
@@ -146,7 +142,7 @@ function setupMenu() {
     controls.enableDamping = true;
 }
 
-// --- ESCENARIO 1 (NO SE TOCA) ---
+// --- ¡ÚNICO CAMBIO AQUÍ! ---
 function setupEscenario1() {
     scene.background = new THREE.Color(0x88ccee); 
     camera.position.set(5, 2.0, 5); 
@@ -160,7 +156,12 @@ function setupEscenario1() {
         gltf.scene.scale.set(1, 1, 1);
         gltf.scene.position.x = -10;
         gltf.scene.position.y = 0; 
-        gltf.scene.position.z = 0;
+        
+        // --- ¡CAMBIO REALIZADO! ---
+        // Movemos la escena a z = -3 para que esté DETRÁS de los botones (z = -2.5)
+        // y no bloquee el rayo del cursor.
+        gltf.scene.position.z = -3; 
+        
         scene.add(gltf.scene);
     });
 }
@@ -294,8 +295,6 @@ function handleGazeInteraction(delta) {
         gazeDwellTime += delta; 
 
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
-            // --- ¡CORRECCIÓN AQUÍ! ---
-            // Se corrigió "currentGGazeTarget" a "currentGazeTarget"
             onGazeSelect(currentGazeTarget); 
             gazeDwellTime = 0; 
         }
