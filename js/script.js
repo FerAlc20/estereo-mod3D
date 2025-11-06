@@ -42,10 +42,12 @@ function init() {
 
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    camera.add(interactableGroup); // Botones 3D pegados a la cámara
+    // --- ¡CAMBIO 1: BOTONES YA NO SE PEGAN A LA CÁMARA! ---
+    // La línea "camera.add(interactableGroup);" se ha ELIMINADO de aquí.
 
-
-    const reticleGeo = new THREE.CircleGeometry(0.015, 16); // <-- ¡CAMBIO AQUÍ!
+    // --- El "Cursor" (Retícula de Mirada) ---
+    // Este se queda pegado a la cámara (esto SÍ es correcto).
+    const reticleGeo = new THREE.CircleGeometry(0.015, 16); // Tamaño grande
     const reticleMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff,
         fog: false,
@@ -56,7 +58,7 @@ function init() {
     reticle = new THREE.Mesh(reticleGeo, reticleMat);
     reticle.position.z = -0.5; // Fijo 0.5m delante de la cámara
     reticle.renderOrder = 999;
-    camera.add(reticle); // <-- AÑADIDO A LA CÁMARA
+    camera.add(reticle); // <-- El cursor SÍ se añade a la cámara
 
     renderer.xr.addEventListener('sessionstart', updateUIVisibility);
     renderer.xr.addEventListener('sessionend', updateUIVisibility);
@@ -96,6 +98,13 @@ function switchScene(newState) {
     }
 
     scene.add(camera); 
+
+    // --- ¡CAMBIO 2: AÑADIR BOTONES A LA ESCENA (AL MUNDO)! ---
+    // Ahora los botones se añaden a la escena, no a la cámara.
+    scene.add(interactableGroup);
+    // Los posicionamos flotando en el mundo, a nivel de los ojos (1.6m)
+    // y 2.5m enfrente de donde inicias.
+    interactableGroup.position.set(0, 1.6, -2.5);
     
     // Luces genéricas
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
@@ -129,7 +138,7 @@ function setupMenu() {
     camera.position.set(0, 1.6, 3);
     
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshBasicMaterial();
+    const material = new THREE.MeshNormalMaterial();
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(0, 1.6, -2); 
     scene.add(cube);
@@ -151,7 +160,7 @@ function setupEscenario1() {
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
         gltf.scene.scale.set(1, 1, 1);
-        gltf.scene.position.x = -10; // <- Esto lo dejé como estaba
+        gltf.scene.position.x = -10;
         gltf.scene.position.y = 0; 
         gltf.scene.position.z = 0;
         scene.add(gltf.scene);
@@ -165,25 +174,19 @@ function setupEscenario2() {
     // Cámara 2D
     camera.position.set(0, 1.6, 5); 
     
-    // Apuntar los controles 2D a la nueva posición del personaje
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(-1.5, 1, -3); // Apuntar a X= -1.5
+    controls.target.set(-1.5, 1, -3); 
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
         fbxModel.scale.set(0.015, 0.015, 0.015);
-        
-        // POSICIÓN
         fbxModel.position.set(-1.5, 0.1, -3); 
-
-        // ROTACIÓN
         fbxModel.rotation.y = 0; 
         
         scene.add(fbxModel);
 
-        // Cargar animación
         const animLoader = new FBXLoader();
         animLoader.load('models/Silly Dancing.fbx', (fbxAnim) => {
             mixer = new THREE.AnimationMixer(fbxModel);
@@ -220,7 +223,10 @@ function createButtonMesh(text, name, yPos) {
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
-    mesh.position.set(0, yPos - 0.5, -2.5); // Fijos en la cámara
+    // --- ¡CAMBIO 3: POSICIÓN DEL BOTÓN RELATIVA AL GRUPO! ---
+    // Ahora se posicionan verticalmente (yPos) dentro del grupo,
+    // ya que el grupo (interactableGroup) es el que está posicionado en -2.5z.
+    mesh.position.set(0, yPos, 0); 
     return mesh;
 }
 
@@ -251,15 +257,12 @@ function createVRGameUI() {
 function updateUIVisibility() {
     const isVR = renderer.xr.isPresenting;
     
-    // El cursor de GAZE (punto) y los botones 3D SÓLO son visibles en VR
     reticle.visible = isVR;
     interactableGroup.visible = isVR;
     
-    // Los menús HTML SÓLO son visibles si NO estamos en VR
     uiMenu.style.display = (!isVR && currentState === 'MENU') ? 'flex' : 'none';
     uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex' : 'none';
 
-    // Actualizar texto del botón 2D "btn-to-other"
     if (!isVR) {
         if (currentState === 'ESCENARIO_1') {
             btnToOther.innerText = 'Ver Personaje (KGR)';
@@ -271,36 +274,35 @@ function updateUIVisibility() {
     }
 }
 
-
+// --- Interacción por Mirada (Gaze) ---
 function handleGazeInteraction(delta) {
     if (!renderer.xr.isPresenting) return; // Solo funciona en VR
 
-    // Lanza un rayo invisible desde el centro de la cámara (donde está el punto)
     raycaster.setFromCamera({ x: 0, y: 0 }, camera); 
+    // ¡Ahora el rayo SÍ puede chocar con los botones,
+    // porque los botones están en la escena (en el mundo)
+    // y el rayo sale de la cámara!
     const intersects = raycaster.intersectObjects(interactableGroup.children);
 
     let target = null;
     if (intersects.length > 0) {
-        target = intersects[0].object; // El botón que estás mirando
+        target = intersects[0].object; 
     }
 
-    // Quitar resaltado de botones no mirados
     interactableGroup.children.forEach(child => child.scale.set(1, 1, 1));
 
     if (target !== currentGazeTarget) {
         currentGazeTarget = target;
-        gazeDwellTime = 0; // Reiniciar contador de tiempo
+        gazeDwellTime = 0; 
     }
 
-    // Si estás mirando un botón
     if (currentGazeTarget) {
-        currentGazeTarget.scale.set(1.2, 1.2, 1.2); // Resaltar (agrandar)
-        gazeDwellTime += delta; // Sumar tiempo
+        currentGazeTarget.scale.set(1.2, 1.2, 1.2); 
+        gazeDwellTime += delta; 
 
-        // Si el tiempo supera el límite (1.5 seg)
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
-            onGazeSelect(currentGazeTarget); // ¡HACER CLIC!
-            gazeDwellTime = 0; // Reiniciar
+            onGazeSelect(currentGGazeTarget); 
+            gazeDwellTime = 0; 
         }
     }
 }
