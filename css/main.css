@@ -11,7 +11,28 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
+    z-index: 1; /* Al fondo */
 }
+
+/* --- NUEVOS ESTILOS para Nav y Footer --- */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 10; /* Encima del canvas */
+}
+
+.footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px 0;
+    z-index: 10; /* Encima del canvas */
+}
+/* --- FIN DE NUEVOS ESTILOS --- */
+
 
 #ui-overlay {
     position: fixed;
@@ -26,7 +47,7 @@ body {
     pointer-events: none;
     color: white;
     text-shadow: 2px 2px 4px #000000;
-    z-index: 10; /* Asegurar que esté encima */
+    z-index: 11; /* Encima del Nav y Footer */
 }
 
 .menu {
@@ -64,7 +85,7 @@ button:hover {
     color: #000;
 }
 
-
+/* --- ¡CORRECCIÓN BOTÓN DE VR! --- */
 /* Arregla la barra magenta en móviles */
 #VRButton {
     z-index: 100 !important;
