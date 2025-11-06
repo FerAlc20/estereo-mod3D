@@ -26,7 +26,7 @@ body {
     pointer-events: none;
     color: white;
     text-shadow: 2px 2px 4px #000000;
-    z-index: 10;
+    z-index: 10; /* Asegurar que esté encima */
 }
 
 .menu {
@@ -51,7 +51,6 @@ button {
     padding: 10px 20px;
     border: none;
     border-radius: 5px;
-    background-color: #007bff;
     color: white;
     cursor: pointer;
     transition: background-color 0.3s;
@@ -61,12 +60,36 @@ button {
 }
 
 button:hover {
-    background-color: #00ffff; /* Invertido para el look retro */
+    background-color: #00ffff;
     color: #000;
 }
 
 
+/* Arregla la barra magenta en móviles */
 #VRButton {
-    /* ¡Lo ocultamos para siempre! */
-    display: none !important;
+    z-index: 100 !important;
+    position: fixed !important;
+    top: 20px !important;
+    right: 20px !important;
+    
+    /* Forzar tamaño pequeño */
+    width: auto !important;
+    height: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+
+    /* Estilo retro */
+    background: #f0f !important;
+    border: 2px solid #f0f !important;
+    color: #000 !important;
+    font-family: 'Courier New', Courier, monospace !important;
+    font-weight: bold !important;
+    box-shadow: 0 0 15px #f0f;
+    border-radius: 8px !important;
+    padding: 10px 15px !important;
+
+    /* Resetear estilos de "Cardboard" */
+    writing-mode: initial !important;
+    transform: none !important;
+    -webkit-transform: none !important;
 }
