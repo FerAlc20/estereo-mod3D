@@ -44,11 +44,8 @@ function init() {
     interactableGroup = new THREE.Group();
     camera.add(interactableGroup); // Botones 3D pegados a la cámara
 
-    // --- El "Cursor" (Retícula de Mirada) ---
-    // Este es el punto blanco. Se AÑADE A LA CÁMARA.
-    // Por eso es "estático": está fijo en el centro de tu vista.
-    // TÚ MUEVES LA CABEZA para apuntarlo.
-    const reticleGeo = new THREE.CircleGeometry(0.003, 16);
+
+    const reticleGeo = new THREE.CircleGeometry(0.015, 16); // <-- ¡CAMBIO AQUÍ!
     const reticleMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff,
         fog: false,
@@ -119,7 +116,7 @@ function switchScene(newState) {
             createVRGameUI();
             break;
         case 'ESCENARIO_2':
-            setupEscenario2(); // Modificado
+            setupEscenario2(); // No se toca
             createVRGameUI();
             break;
     }
@@ -132,7 +129,7 @@ function setupMenu() {
     camera.position.set(0, 1.6, 3);
     
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-    const material = new THREE.MeshNormalMaterial();
+    const material = new THREE.MeshBasicMaterial();
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(0, 1.6, -2); 
     scene.add(cube);
@@ -161,14 +158,14 @@ function setupEscenario1() {
     });
 }
 
-// --- ¡CORRECCIÓN ESCENARIO 2 (Personaje)! ---
+// --- ESCENARIO 2 (NO SE TOCA) ---
 function setupEscenario2() {
     scene.background = new THREE.Color(0x101010); 
 
     // Cámara 2D
     camera.position.set(0, 1.6, 5); 
     
-    // ¡CAMBIO 1! Apuntar los controles 2D a la nueva posición del personaje
+    // Apuntar los controles 2D a la nueva posición del personaje
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(-1.5, 1, -3); // Apuntar a X= -1.5
     controls.enableDamping = true;
@@ -178,12 +175,10 @@ function setupEscenario2() {
         
         fbxModel.scale.set(0.015, 0.015, 0.015);
         
-        // ¡CAMBIO 2: POSICIÓN!
-        // Lo muevo "a un lado" (X = -1.5)
+        // POSICIÓN
         fbxModel.position.set(-1.5, 0.1, -3); 
 
-        // ¡CAMBIO 3: ROTACIÓN!
-        // Si Math.PI (180°) era de espaldas, entonces 0 es de frente.
+        // ROTACIÓN
         fbxModel.rotation.y = 0; 
         
         scene.add(fbxModel);
@@ -276,17 +271,7 @@ function updateUIVisibility() {
     }
 }
 
-// --- ¡AQUÍ ESTÁ EL "CURSOR" QUE FUNCIONA! ---
-// Esta función es el "cerebro" de tu cursor de VR.
-// NO es un error que el punto blanco sea "estático".
-// ESTÁ DISEÑADO ASÍ.
-//
-// CÓMO FUNCIONA:
-// 1. El punto (`reticle`) está pegado AL CENTRO de tu cámara/vista.
-// 2. TÚ MUEVES TU CABEZA para "apuntar" ese punto hacia un botón 3D.
-// 3. Esta función detecta si estás apuntando a un botón.
-// 4. Si MANTIENES LA MIRADA en el botón por 1.5 segundos, se activa.
-//
+
 function handleGazeInteraction(delta) {
     if (!renderer.xr.isPresenting) return; // Solo funciona en VR
 
