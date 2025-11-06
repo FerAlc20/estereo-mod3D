@@ -47,7 +47,7 @@ function init() {
     // 1. El punto blanco (Retícula)
     const reticleGeo = new THREE.CircleGeometry(0.003, 16);
     const reticleMat = new THREE.MeshBasicMaterial({
-        color: 0x00ffff, // Color cian
+        color: 0x00ffff,
         fog: false,
         depthTest: false,
         transparent: true,
@@ -121,7 +121,7 @@ function switchScene(newState) {
 // --- Configuración de Escenas ---
 function setupMenu() {
     scene.background = new THREE.Color(0x101010);
-    camera.position.set(0, 1.6, 0.1); // Altura de ojos
+    camera.position.set(0, 1.6, 0.1);
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const material = new THREE.MeshNormalMaterial();
@@ -130,15 +130,15 @@ function setupMenu() {
     scene.add(cube);
 }
 
+// --- ¡CORRECCIÓN 2: ESCENARIO (BUS STOP)! ---
 function setupEscenario1() {
-    scene.background = new THREE.Color(0x88ccee);
+    scene.background = new THREE.Color(0x88ccee); // Cielo azul
     scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
     const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
     directionalLight.position.set(-5, 25, -1);
     scene.add(directionalLight);
     
-    // --- ¡CORRECCIÓN DE ALTURA (ESCENARIO)! ---
-    // 1. Ponemos la cámara a la altura de los ojos (1.6m) y 5m atrás
+    // 1. Poner la cámara a 1.6m (altura de ojos) y 5m atrás
     camera.position.set(0, 1.6, 5); 
     
     controls = new OrbitControls(camera, renderer.domElement);
@@ -147,45 +147,51 @@ function setupEscenario1() {
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
-        // 2. Mantenemos la escala que funcionaba (el modelo es grande)
+        // 2. Escalar el vecindario (0.1 = 10% del tamaño original)
         gltf.scene.scale.set(0.1, 0.1, 0.1);
         
-        // 3. Bajamos el modelo 1.6m para que el suelo (Y=0 en modelo)
-        //    quede a los pies del jugador (Y=0 en mundo)
+        // 3. ¡LA CALLE A TUS PIES!
+        // Bajar el escenario 1.6m para que el suelo
+        // del modelo (Y=0) coincida con tus pies (Y=0)
         gltf.scene.position.y = -1.6; 
         
         scene.add(gltf.scene);
     });
 }
 
+// --- ¡CORRECCIÓN 3: PERSONAJE (KGR)! ---
 function setupEscenario2() {
-    scene.background = new THREE.Color(0x101010);
+    scene.background = new THREE.Color(0x101010); // Fondo oscuro
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
     const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
     dirLight.position.set(1, 2, 3);
     scene.add(dirLight);
     
-    // Ponemos la cámara a altura de ojos y 5m atrás
+    // 1. Poner la cámara a altura de ojos y 5m atrás
     camera.position.set(0, 1.6, 5); 
     
     controls = new OrbitControls(camera, renderer.domElement);
-    // Apuntar a la posición X del personaje
+    // 2. Apuntar la cámara 2D al personaje (que está en X: -1.0)
     controls.target.set(-1.0, 1, 0); 
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
-        // --- ¡CORRECCIÓN DE ESCALA (PERSONAJE)! ---
-        // Estabas dentro del modelo. Lo hacemos 10 veces más pequeño.
-        fbxModel.scale.set(0.002, 0.002, 0.002);
+        // 3. ¡ESCALA CORREGIDA!
+        // Ni muy grande (dentro) ni muy pequeño (punto).
+        // 0.01 o 0.02 es buen valor. Empecemos con 0.01
+        fbxModel.scale.set(0.01, 0.01, 0.01);
         
-        // Posición a la izquierda (X: -1.0) y sobre el suelo (Y: 0.1)
-        // Z: 0 (lo veremos desde nuestra posición Z=5)
+        // 4. ¡POSICIÓN A LA IZQUIERDA!
+        // X: -1.0 (a la izquierda)
+        // Y: 0.1 (sobre el suelo)
+        // Z: 0 (5m en frente de la cámara)
         fbxModel.position.set(-1.0, 0.1, 0); 
         
         scene.add(fbxModel);
 
+        // Cargar animación
         const animLoader = new FBXLoader();
         animLoader.load('models/Silly Dancing.fbx', (fbxAnim) => {
             mixer = new THREE.AnimationMixer(fbxModel);
@@ -194,27 +200,25 @@ function setupEscenario2() {
     });
 }
 
-// --- Funciones de UI VR (Sin cambios) ---
-
+// --- Funciones de UI VR (Estilo Retro) ---
 function createButtonMesh(text, name, yPos) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     canvas.width = 512;
     canvas.height = 128;
-    ctx.fillStyle = '#000000';
-    ctx.strokeStyle = '#00ffff';
+    ctx.fillStyle = '#000000'; // Fondo negro
+    ctx.strokeStyle = '#00ffff'; // Borde cian
     ctx.lineWidth = 15;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#00ffff';
-    ctx.font = 'bold 50px Courier New';
+    ctx.fillStyle = '#00ffff'; // Texto cian
+    ctx.font = 'bold 50px Courier New'; // Fuente retro
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
 
     const texture = new THREE.CanvasTexture(canvas);
     const geometry = new THREE.PlaneGeometry(1, 0.25);
-
     const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
@@ -271,8 +275,7 @@ function updateUIVisibility() {
     }
 }
 
-// --- Funciones de Interacción por Mirada (Gaze) (Sin cambios) ---
-
+// --- Funciones de Interacción por Mirada (Gaze) ---
 function handleGazeInteraction(delta) {
     if (!renderer.xr.isPresenting) return;
 
@@ -320,7 +323,7 @@ function onGazeSelect(selectedObject) {
     }
 }
 
-// --- Manejador de Redimensión (Sin cambios) ---
+// --- Manejador de Redimensión ---
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
