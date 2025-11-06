@@ -20,6 +20,35 @@ canvas {
     z-index: 1;
 }
 
+/* --- ESTILOS AÑADIDOS PARA LOS BOTONES HTML --- */
+#ui-container {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 8px;
+    border: 1px solid #00ffff;
+}
+
+.btn-custom {
+    background-color: transparent;
+    border: 1px solid #00ffff;
+    color: #00ffff;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+.btn-custom:hover,
+.btn-custom:focus,
+.btn-custom.active { /* 'active' para saber cuál está seleccionado */
+    background-color: #00ffff;
+    color: #0a0a0a;
+    box-shadow: 0 0 15px #00ffff, 0 0 25px #00ffff;
+}
 
 /* El botón de VR que añade Three.js */
 #VRButton {
