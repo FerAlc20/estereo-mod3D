@@ -42,9 +42,7 @@ function init() {
     // --- Configuración de Interacción VR ---
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    // --- ¡CORRECCIÓN 1: BOTONES FIJOS! ---
-    // Añadimos los botones a la CÁMARA, no a la escena.
-    // Esto hace que te sigan y no se queden en el mundo.
+    // Añadimos los botones a la CÁMARA
     camera.add(interactableGroup);
 
     // 1. El punto blanco (Retícula)
@@ -132,7 +130,6 @@ function setupMenu() {
     scene.add(cube);
 }
 
-// --- ¡CORRECCIÓN 2: ESCENARIO (Bus Stop) A NIVEL DE CALLE! ---
 function setupEscenario1() {
     scene.background = new THREE.Color(0x88ccee); // Cielo azul
     scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
@@ -140,8 +137,7 @@ function setupEscenario1() {
     directionalLight.position.set(-5, 25, -1);
     scene.add(directionalLight);
     
-    // 1. Poner la cámara a 1.6m (altura de ojos) y 15m atrás
-    //    Esto te saca del "cuarto" y te pone en la calle.
+    // Posición de la cámara en la calle (esto está bien)
     camera.position.set(0, 1.6, 15); 
     
     controls = new OrbitControls(camera, renderer.domElement);
@@ -150,17 +146,13 @@ function setupEscenario1() {
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
-        // 2. NO escalamos el modelo (1,1,1)
         gltf.scene.scale.set(1, 1, 1);
-        
-        // 3. NO bajamos el modelo.
         gltf.scene.position.y = 0; 
-        
         scene.add(gltf.scene);
     });
 }
 
-// --- ¡CORRECCIÓN 3: PERSONAJE (KGR) DE FRENTE Y COMPLETO! ---
+// --- CONFIGURACIÓN DE ESCENARIO 2 (CON CORRECCIONES) ---
 function setupEscenario2() {
     scene.background = new THREE.Color(0x101010); // Fondo oscuro
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
@@ -168,28 +160,28 @@ function setupEscenario2() {
     dirLight.position.set(1, 2, 3);
     scene.add(dirLight);
     
-    // 1. Poner la cámara a altura de ojos y 3m atrás
-    camera.position.set(0, 1.6, 3); 
+    // --- ¡CORRECCIÓN 1: CÁMARA MÁS ATRÁS! ---
+    // Estabas en z=3 (muy cerca), ahora te pongo en z=5.
+    // Esto evita que te "comas" al personaje en modo VR.
+    camera.position.set(0, 1.6, 5); 
     
     controls = new OrbitControls(camera, renderer.domElement);
-    // 2. Apuntar la cámara 2D al personaje
     controls.target.set(0, 1, 0); // Apuntar al centro
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
-        // 3. ¡ESCALA CORREGIDA!
-        // 0.01 era pequeño, 0.02 era enorme. 0.015 es un buen punto medio.
+        // Escala (esto estaba bien)
         fbxModel.scale.set(0.015, 0.015, 0.015);
         
-        // 4. ¡POSICIÓN CORREGIDA!
-        // Centrado (X=0) y sobre el suelo (Y=0.1)
+        // Posición (esto estaba bien)
         fbxModel.position.set(0, 0.1, 0); 
 
-        // 5. ¡ROTACIÓN CORREGIDA!
-        // Gira 90 grados (Math.PI / 2) para que te mire de frente.
-        fbxModel.rotation.y = Math.PI / 2;
+        // --- ¡CORRECCIÓN 2: PERSONAJE DE FRENTE! ---
+        // Tu código anterior tenía Math.PI / 2 (90 grados), por eso se veía de lado.
+        // Lo cambiamos a Math.PI (180 grados) para que rote y te mire de frente.
+        fbxModel.rotation.y = Math.PI; 
         
         scene.add(fbxModel);
 
@@ -231,10 +223,7 @@ function createButtonMesh(text, name, yPos) {
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
     
-    // --- ¡CORRECCIÓN 4: BOTONES VR ABAJO! ---
     // Posiciona los botones 0.5m por debajo del centro de la vista
-    // yPos (0.3 o 0) - 0.5 = -0.2m o -0.5m
-    // (Recuerda que están PEGADOS A LA CÁMARA)
     mesh.position.set(0, yPos - 0.5, -2.5); 
 
     return mesh;
@@ -269,7 +258,15 @@ function updateUIVisibility() {
     interactableGroup.visible = isVR;
     
     uiMenu.style.display = (isVR || currentState !== 'MENU') ? 'none' : 'flex';
-    uiGame.style.display = (isVR || currentState === 'MENU') ? 'none' : 'flex';
+    uiGame.style.display = (isVR || currentState === 'MENU') || !isVR ? 'none' : 'flex';
+    
+    // Corrección lógica: game-ui solo debe mostrarse si NO estás en VR Y NO estás en el MENÚ
+    if (!isVR && currentState !== 'MENU') {
+        uiGame.style.display = 'flex';
+    } else if (isVR) {
+        uiGame.style.display = 'none'; // Ocultar UI HTML en VR
+    }
+
 
     if (!isVR) {
         if (currentState === 'ESCENARIO_1') {
