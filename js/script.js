@@ -29,6 +29,8 @@ function init() {
     clock = new THREE.Clock();
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // Posición inicial de la cámara 2D. Se ajustará en cada escena.
+    camera.position.set(0, 1.6, 5); 
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -55,7 +57,7 @@ function init() {
         opacity: 0.8
     });
     reticle = new THREE.Mesh(reticleGeo, reticleMat);
-    reticle.position.z = -0.5;
+    reticle.position.z = -0.5; // Fijo delante de la cámara
     reticle.renderOrder = 999;
     camera.add(reticle);
 
@@ -64,6 +66,9 @@ function init() {
     renderer.xr.addEventListener('sessionend', updateUIVisibility);
 
     // --- Eventos de la UI HTML ---
+    // Explicación del "Cursor":
+    // En 2D (PC/móvil), el "cursor" es tu MOUSE o DEDO.
+    // Haces clic/tapas estos botones HTML.
     btnToEnv1.onclick = () => switchScene('ESCENARIO_1');
     btnToEnv2.onclick = () => switchScene('ESCENARIO_2');
     btnToMenu.onclick = () => switchScene('MENU');
@@ -76,14 +81,17 @@ function init() {
 function animate() {
     const delta = clock.getDelta();
 
-    if (currentState === 'ESCENARIO_1' || currentState === 'ESCENARIO_2') {
-        if (controls) controls.update();
-    }
-    if (currentState === 'ESCENARIO_2') {
-        if (mixer) mixer.update(delta);
-    }
+    if (controls) controls.update(delta); // Actualizar OrbitControls si existen
+    
+    if (mixer) mixer.update(delta); // Actualizar animación
+    
 
+    // Explicación del "Cursor VR":
+    // En VR, los botones HTML desaparecen.
+    // El "cursor" es el punto blanco (retícula) que se controla con TU MIRADA.
+    // Lanza un rayo y si miras un botón 3D por 1.5 seg, se activa.
     handleGazeInteraction(delta);
+
     renderer.render(scene, camera);
 }
 
@@ -94,9 +102,19 @@ function switchScene(newState) {
     scene.clear();
     interactableGroup.clear(); // Los botones se borran del grupo
     if (mixer) mixer = null;
-    if (controls) controls.dispose();
+    if (controls) {
+        controls.dispose();
+        controls = null;
+    }
 
     scene.add(camera); // Añadimos la cámara (que YA CONTIENE la retícula y el grupo de botones)
+    
+    // Luces genéricas para todas las escenas
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    dirLight.position.set(1, 2, 3);
+    scene.add(dirLight);
+
 
     currentGazeTarget = null;
     gazeDwellTime = 0;
@@ -121,66 +139,71 @@ function switchScene(newState) {
 // --- Configuración de Escenas ---
 function setupMenu() {
     scene.background = new THREE.Color(0x101010);
-    camera.position.set(0, 1.6, 0.1);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+    // Cámara 2D
+    camera.position.set(0, 1.6, 3);
+    
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const material = new THREE.MeshNormalMaterial();
     const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(0, 1.6, -2);
+    cube.position.set(0, 1.6, -2); // Poner el cubo delante
     scene.add(cube);
+    
+    // Configurar controles 2D
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.6, -2);
+    controls.enableDamping = true;
 }
 
+// --- ¡CORRECCIÓN ESCENARIO 1 (Bus Stop)! ---
 function setupEscenario1() {
     scene.background = new THREE.Color(0x88ccee); // Cielo azul
-    scene.add(new THREE.HemisphereLight(0x8dc1de, 0x00668d, 1.5));
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
-    directionalLight.position.set(-5, 25, -1);
-    scene.add(directionalLight);
     
-    // Posición de la cámara en la calle (esto está bien)
-    camera.position.set(0, 1.6, 15); 
+    // 1. Configurar cámara 2D
+    camera.position.set(5, 2.0, 5); // Vista 2D diagonal
     
+    // 2. Configurar controles 2D para que miren al escenario
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.6, 0); // Mirar al centro
+    controls.target.set(-10, 1.0, 0); // Apuntar al escenario
     controls.enableDamping = true;
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
         gltf.scene.scale.set(1, 1, 1);
+        
+        // 3. ¡CORRECCIÓN DE POSICIÓN!
+        // Movemos la escena a la izquierda, como pediste.
+        // Esto funciona tanto en 2D como en VR (donde tú estás en 0,0,0).
+        gltf.scene.position.x = -10;
         gltf.scene.position.y = 0; 
+        gltf.scene.position.z = 0; // Lo dejamos en el origen Z
+        
         scene.add(gltf.scene);
     });
 }
 
-// --- CONFIGURACIÓN DE ESCENARIO 2 (CON CORRECCIONES) ---
+// --- ¡CORRECCIÓN ESCENARIO 2 (Personaje)! ---
 function setupEscenario2() {
     scene.background = new THREE.Color(0x101010); // Fondo oscuro
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.5));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 2.5);
-    dirLight.position.set(1, 2, 3);
-    scene.add(dirLight);
+
+    // 1. Configurar cámara 2D
+    camera.position.set(0, 1.6, 5); // Cámara 2D 5m atrás
     
-    // --- ¡CORRECCIÓN 1: CÁMARA MÁS ATRÁS! ---
-    // Estabas en z=3 (muy cerca), ahora te pongo en z=5.
-    // Esto evita que te "comas" al personaje en modo VR.
-    camera.position.set(0, 1.6, 5); 
-    
+    // 2. Configurar controles 2D para que miren al personaje
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1, 0); // Apuntar al centro
+    controls.target.set(0, 1, -3); // Apuntar al personaje en su nueva Z
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
     fbxLoader.load('models/KGR.fbx', (fbxModel) => {
         
-        // Escala (esto estaba bien)
         fbxModel.scale.set(0.015, 0.015, 0.015);
         
-        // Posición (esto estaba bien)
-        fbxModel.position.set(0, 0.1, 0); 
+        // 3. ¡CORRECCIÓN DE POSICIÓN!
+        // Movemos el personaje 3m AL FRENTE de la cámara VR (que está en 0,0,0)
+        fbxModel.position.set(0, 0.1, -3); 
 
-        // --- ¡CORRECCIÓN 2: PERSONAJE DE FRENTE! ---
-        // Tu código anterior tenía Math.PI / 2 (90 grados), por eso se veía de lado.
-        // Lo cambiamos a Math.PI (180 grados) para que rote y te mire de frente.
+        // 4. ¡CORRECCIÓN DE ROTACIÓN!
+        // Lo rotamos 180 grados (Math.PI) para que te mire de FRENTE.
         fbxModel.rotation.y = Math.PI; 
         
         scene.add(fbxModel);
@@ -194,7 +217,7 @@ function setupEscenario2() {
     });
 }
 
-// --- Funciones de UI VR (Estilo Retro) ---
+// --- Funciones de UI VR (Botones 3D) ---
 function createButtonMesh(text, name, yPos) {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -216,15 +239,15 @@ function createButtonMesh(text, name, yPos) {
     const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        depthTest: false,
-        renderOrder: 998
+        depthTest: false, // Para que siempre se vea
+        renderOrder: 998 // Encima de todo
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
     
     // Posiciona los botones 0.5m por debajo del centro de la vista
-    mesh.position.set(0, yPos - 0.5, -2.5); 
+    mesh.position.set(0, yPos - 0.5, -2.5); // Fijos en la cámara
 
     return mesh;
 }
@@ -252,22 +275,19 @@ function createVRGameUI() {
     interactableGroup.add(btnOther);
 }
 
+// --- Manejador de Visibilidad (HTML vs VR) ---
 function updateUIVisibility() {
     const isVR = renderer.xr.isPresenting;
+    
+    // El cursor de GAZE (punto) y los botones 3D SÓLO son visibles en VR
     reticle.visible = isVR;
     interactableGroup.visible = isVR;
     
-    uiMenu.style.display = (isVR || currentState !== 'MENU') ? 'none' : 'flex';
-    uiGame.style.display = (isVR || currentState === 'MENU') || !isVR ? 'none' : 'flex';
-    
-    // Corrección lógica: game-ui solo debe mostrarse si NO estás en VR Y NO estás en el MENÚ
-    if (!isVR && currentState !== 'MENU') {
-        uiGame.style.display = 'flex';
-    } else if (isVR) {
-        uiGame.style.display = 'none'; // Ocultar UI HTML en VR
-    }
+    // Los menús HTML SÓLO son visibles si NO estamos en VR
+    uiMenu.style.display = (!isVR && currentState === 'MENU') ? 'flex' : 'none';
+    uiGame.style.display = (!isVR && currentState !== 'MENU') ? 'flex' : 'none';
 
-
+    // Actualizar texto del botón 2D "btn-to-other"
     if (!isVR) {
         if (currentState === 'ESCENARIO_1') {
             btnToOther.innerText = 'Ver Personaje (KGR)';
@@ -280,10 +300,11 @@ function updateUIVisibility() {
 }
 
 // --- Funciones de Interacción por Mirada (Gaze) ---
+// ESTO es el "cursor" que funciona en VR
 function handleGazeInteraction(delta) {
-    if (!renderer.xr.isPresenting) return;
+    if (!renderer.xr.isPresenting) return; // Solo funciona en VR
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera); // Lanza rayo desde el centro
     const intersects = raycaster.intersectObjects(interactableGroup.children);
 
     let target = null;
@@ -291,19 +312,19 @@ function handleGazeInteraction(delta) {
         target = intersects[0].object;
     }
 
+    // Resaltar botón si se está mirando
+    interactableGroup.children.forEach(child => child.scale.set(1, 1, 1));
+
     if (target !== currentGazeTarget) {
         currentGazeTarget = target;
-        gazeDwellTime = 0;
+        gazeDwellTime = 0; // Reiniciar contador
     }
 
-    interactableGroup.children.forEach(child => {
-        child.scale.set(1, 1, 1);
-    });
-
     if (currentGazeTarget) {
-        currentGazeTarget.scale.set(1.2, 1.2, 1.2);
+        currentGazeTarget.scale.set(1.2, 1.2, 1.2); // Agrandar botón
         gazeDwellTime += delta;
 
+        // Si se mira por 1.5 segundos, activar
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
             onGazeSelect(currentGazeTarget);
             gazeDwellTime = 0;
@@ -314,6 +335,7 @@ function handleGazeInteraction(delta) {
 function onGazeSelect(selectedObject) {
     if (!selectedObject) return;
 
+    // Simular clic
     switch (selectedObject.name) {
         case 'btn-to-env1':
             switchScene('ESCENARIO_1');
