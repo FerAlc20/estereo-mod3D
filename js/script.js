@@ -13,7 +13,7 @@ let currentState = 'MENU';
 let reticle, raycaster, interactableGroup;
 let currentGazeTarget = null;
 let gazeDwellTime = 0;
-const DWELL_TIME_THRESHOLD = 1.5;
+const DWELL_TIME_THRESHOLD = 1.5; // Tiempo (segundos) para "hacer clic" con la mirada
 
 // Elementos de la UI HTML
 const uiMenu = document.getElementById('menu-ui');
@@ -29,7 +29,6 @@ function init() {
     clock = new THREE.Clock();
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Posición inicial de la cámara 2D. Se ajustará en cada escena.
     camera.position.set(0, 1.6, 5); 
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -41,13 +40,14 @@ function init() {
     document.body.appendChild(VRButton.createButton(renderer));
     container.appendChild(renderer.domElement);
 
-    // --- Configuración de Interacción VR ---
     raycaster = new THREE.Raycaster();
     interactableGroup = new THREE.Group();
-    // Añadimos los botones a la CÁMARA
-    camera.add(interactableGroup);
+    camera.add(interactableGroup); // Botones 3D pegados a la cámara
 
-    // 1. El punto blanco (Retícula)
+    // --- El "Cursor" (Retícula de Mirada) ---
+    // Este es el punto blanco. Se AÑADE A LA CÁMARA.
+    // Por eso es "estático": está fijo en el centro de tu vista.
+    // TÚ MUEVES LA CABEZA para apuntarlo.
     const reticleGeo = new THREE.CircleGeometry(0.003, 16);
     const reticleMat = new THREE.MeshBasicMaterial({
         color: 0x00ffff,
@@ -57,18 +57,14 @@ function init() {
         opacity: 0.8
     });
     reticle = new THREE.Mesh(reticleGeo, reticleMat);
-    reticle.position.z = -0.5; // Fijo delante de la cámara
+    reticle.position.z = -0.5; // Fijo 0.5m delante de la cámara
     reticle.renderOrder = 999;
-    camera.add(reticle);
+    camera.add(reticle); // <-- AÑADIDO A LA CÁMARA
 
-    // 2. Listeners de sesión VR
     renderer.xr.addEventListener('sessionstart', updateUIVisibility);
     renderer.xr.addEventListener('sessionend', updateUIVisibility);
 
-    // --- Eventos de la UI HTML ---
-    // Explicación del "Cursor":
-    // En 2D (PC/móvil), el "cursor" es tu MOUSE o DEDO.
-    // Haces clic/tapas estos botones HTML.
+    // Botones HTML (para 2D con mouse/dedo)
     btnToEnv1.onclick = () => switchScene('ESCENARIO_1');
     btnToEnv2.onclick = () => switchScene('ESCENARIO_2');
     btnToMenu.onclick = () => switchScene('MENU');
@@ -81,15 +77,10 @@ function init() {
 function animate() {
     const delta = clock.getDelta();
 
-    if (controls) controls.update(delta); // Actualizar OrbitControls si existen
-    
-    if (mixer) mixer.update(delta); // Actualizar animación
-    
+    if (controls) controls.update(delta); 
+    if (mixer) mixer.update(delta); 
 
-    // Explicación del "Cursor VR":
-    // En VR, los botones HTML desaparecen.
-    // El "cursor" es el punto blanco (retícula) que se controla con TU MIRADA.
-    // Lanza un rayo y si miras un botón 3D por 1.5 seg, se activa.
+    // Esta función hace que el "cursor estático" funcione en VR
     handleGazeInteraction(delta);
 
     renderer.render(scene, camera);
@@ -100,21 +91,20 @@ function switchScene(newState) {
     currentState = newState;
 
     scene.clear();
-    interactableGroup.clear(); // Los botones se borran del grupo
+    interactableGroup.clear(); 
     if (mixer) mixer = null;
     if (controls) {
         controls.dispose();
         controls = null;
     }
 
-    scene.add(camera); // Añadimos la cámara (que YA CONTIENE la retícula y el grupo de botones)
+    scene.add(camera); 
     
-    // Luces genéricas para todas las escenas
+    // Luces genéricas
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
     dirLight.position.set(1, 2, 3);
     scene.add(dirLight);
-
 
     currentGazeTarget = null;
     gazeDwellTime = 0;
@@ -125,11 +115,11 @@ function switchScene(newState) {
             createVRMenu();
             break;
         case 'ESCENARIO_1':
-            setupEscenario1();
+            setupEscenario1(); // No se toca
             createVRGameUI();
             break;
         case 'ESCENARIO_2':
-            setupEscenario2();
+            setupEscenario2(); // Modificado
             createVRGameUI();
             break;
     }
@@ -139,58 +129,48 @@ function switchScene(newState) {
 // --- Configuración de Escenas ---
 function setupMenu() {
     scene.background = new THREE.Color(0x101010);
-    // Cámara 2D
     camera.position.set(0, 1.6, 3);
     
     const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
     const material = new THREE.MeshNormalMaterial();
     const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(0, 1.6, -2); // Poner el cubo delante
+    cube.position.set(0, 1.6, -2); 
     scene.add(cube);
     
-    // Configurar controles 2D
     controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(0, 1.6, -2);
     controls.enableDamping = true;
 }
 
-// --- ¡CORRECCIÓN ESCENARIO 1 (Bus Stop)! ---
+// --- ESCENARIO 1 (NO SE TOCA) ---
 function setupEscenario1() {
-    scene.background = new THREE.Color(0x88ccee); // Cielo azul
+    scene.background = new THREE.Color(0x88ccee); 
+    camera.position.set(5, 2.0, 5); 
     
-    // 1. Configurar cámara 2D
-    camera.position.set(5, 2.0, 5); // Vista 2D diagonal
-    
-    // 2. Configurar controles 2D para que miren al escenario
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(-10, 1.0, 0); // Apuntar al escenario
+    controls.target.set(-10, 1.0, 0); 
     controls.enableDamping = true;
     
     const loader = new GLTFLoader();
     loader.load('models/bus_stop.glb', (gltf) => {
         gltf.scene.scale.set(1, 1, 1);
-        
-        // 3. ¡CORRECCIÓN DE POSICIÓN!
-        // Movemos la escena a la izquierda, como pediste.
-        // Esto funciona tanto en 2D como en VR (donde tú estás en 0,0,0).
-        gltf.scene.position.x = -10;
+        gltf.scene.position.x = -10; // <- Esto lo dejé como estaba
         gltf.scene.position.y = 0; 
-        gltf.scene.position.z = 0; // Lo dejamos en el origen Z
-        
+        gltf.scene.position.z = 0;
         scene.add(gltf.scene);
     });
 }
 
 // --- ¡CORRECCIÓN ESCENARIO 2 (Personaje)! ---
 function setupEscenario2() {
-    scene.background = new THREE.Color(0x101010); // Fondo oscuro
+    scene.background = new THREE.Color(0x101010); 
 
-    // 1. Configurar cámara 2D
-    camera.position.set(0, 1.6, 5); // Cámara 2D 5m atrás
+    // Cámara 2D
+    camera.position.set(0, 1.6, 5); 
     
-    // 2. Configurar controles 2D para que miren al personaje
+    // ¡CAMBIO 1! Apuntar los controles 2D a la nueva posición del personaje
     controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1, -3); // Apuntar al personaje en su nueva Z
+    controls.target.set(-1.5, 1, -3); // Apuntar a X= -1.5
     controls.enableDamping = true;
     
     const fbxLoader = new FBXLoader();
@@ -198,13 +178,13 @@ function setupEscenario2() {
         
         fbxModel.scale.set(0.015, 0.015, 0.015);
         
-        // 3. ¡CORRECCIÓN DE POSICIÓN!
-        // Movemos el personaje 3m AL FRENTE de la cámara VR (que está en 0,0,0)
-        fbxModel.position.set(0, 0.1, -3); 
+        // ¡CAMBIO 2: POSICIÓN!
+        // Lo muevo "a un lado" (X = -1.5)
+        fbxModel.position.set(-1.5, 0.1, -3); 
 
-        // 4. ¡CORRECCIÓN DE ROTACIÓN!
-        // Lo rotamos 180 grados (Math.PI) para que te mire de FRENTE.
-        fbxModel.rotation.y = Math.PI; 
+        // ¡CAMBIO 3: ROTACIÓN!
+        // Si Math.PI (180°) era de espaldas, entonces 0 es de frente.
+        fbxModel.rotation.y = 0; 
         
         scene.add(fbxModel);
 
@@ -223,13 +203,13 @@ function createButtonMesh(text, name, yPos) {
     const ctx = canvas.getContext('2d');
     canvas.width = 512;
     canvas.height = 128;
-    ctx.fillStyle = '#000000'; // Fondo negro
-    ctx.strokeStyle = '#00ffff'; // Borde cian
+    ctx.fillStyle = '#000000'; 
+    ctx.strokeStyle = '#00ffff'; 
     ctx.lineWidth = 15;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = '#00ffff'; // Texto cian
-    ctx.font = 'bold 50px Courier New'; // Fuente retro
+    ctx.fillStyle = '#00ffff'; 
+    ctx.font = 'bold 50px Courier New'; 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, canvas.width / 2, canvas.height / 2);
@@ -239,16 +219,13 @@ function createButtonMesh(text, name, yPos) {
     const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        depthTest: false, // Para que siempre se vea
-        renderOrder: 998 // Encima de todo
+        depthTest: false, 
+        renderOrder: 998 
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.name = name;
-    
-    // Posiciona los botones 0.5m por debajo del centro de la vista
     mesh.position.set(0, yPos - 0.5, -2.5); // Fijos en la cámara
-
     return mesh;
 }
 
@@ -299,43 +276,54 @@ function updateUIVisibility() {
     }
 }
 
-// --- Funciones de Interacción por Mirada (Gaze) ---
-// ESTO es el "cursor" que funciona en VR
+// --- ¡AQUÍ ESTÁ EL "CURSOR" QUE FUNCIONA! ---
+// Esta función es el "cerebro" de tu cursor de VR.
+// NO es un error que el punto blanco sea "estático".
+// ESTÁ DISEÑADO ASÍ.
+//
+// CÓMO FUNCIONA:
+// 1. El punto (`reticle`) está pegado AL CENTRO de tu cámara/vista.
+// 2. TÚ MUEVES TU CABEZA para "apuntar" ese punto hacia un botón 3D.
+// 3. Esta función detecta si estás apuntando a un botón.
+// 4. Si MANTIENES LA MIRADA en el botón por 1.5 segundos, se activa.
+//
 function handleGazeInteraction(delta) {
     if (!renderer.xr.isPresenting) return; // Solo funciona en VR
 
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera); // Lanza rayo desde el centro
+    // Lanza un rayo invisible desde el centro de la cámara (donde está el punto)
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera); 
     const intersects = raycaster.intersectObjects(interactableGroup.children);
 
     let target = null;
     if (intersects.length > 0) {
-        target = intersects[0].object;
+        target = intersects[0].object; // El botón que estás mirando
     }
 
-    // Resaltar botón si se está mirando
+    // Quitar resaltado de botones no mirados
     interactableGroup.children.forEach(child => child.scale.set(1, 1, 1));
 
     if (target !== currentGazeTarget) {
         currentGazeTarget = target;
-        gazeDwellTime = 0; // Reiniciar contador
+        gazeDwellTime = 0; // Reiniciar contador de tiempo
     }
 
+    // Si estás mirando un botón
     if (currentGazeTarget) {
-        currentGazeTarget.scale.set(1.2, 1.2, 1.2); // Agrandar botón
-        gazeDwellTime += delta;
+        currentGazeTarget.scale.set(1.2, 1.2, 1.2); // Resaltar (agrandar)
+        gazeDwellTime += delta; // Sumar tiempo
 
-        // Si se mira por 1.5 segundos, activar
+        // Si el tiempo supera el límite (1.5 seg)
         if (gazeDwellTime >= DWELL_TIME_THRESHOLD) {
-            onGazeSelect(currentGazeTarget);
-            gazeDwellTime = 0;
+            onGazeSelect(currentGazeTarget); // ¡HACER CLIC!
+            gazeDwellTime = 0; // Reiniciar
         }
     }
 }
 
+// Esta es la función de "clic" para la mirada
 function onGazeSelect(selectedObject) {
     if (!selectedObject) return;
 
-    // Simular clic
     switch (selectedObject.name) {
         case 'btn-to-env1':
             switchScene('ESCENARIO_1');
